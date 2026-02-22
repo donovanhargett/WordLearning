@@ -1498,11 +1498,12 @@
       const existingKeys = new Set(all.map(x => (x.author + "|" + x.title).toLowerCase()));
       let added = 0;
       for (const line of lines) {
-        const parts = line.split(/\s*[—–-]\s*/).map(s => s.trim()).filter(Boolean);
+        // Split only on em dash (—) or en dash (–), not hyphen (-), so "Best-of" stays intact
+        const parts = line.split(/\s*[—–]\s*/).map(s => s.trim()).filter(Boolean);
         if (parts.length < 2) continue;
-        const author = parts[0];
-        const title = parts[1];
-        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";
+        const author = parts[0];   // name
+        const title = parts[1];   // book title
+        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";  // description
         const key = (author + "|" + title).toLowerCase();
         if (!title || existingKeys.has(key)) continue;
         existingKeys.add(key);
