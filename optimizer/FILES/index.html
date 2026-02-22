@@ -161,6 +161,105 @@
       overflow:hidden;
     }
     .viewer iframe{width:100%;height:100%;border:0;}
+
+    .readingSheet{
+      background:linear-gradient(180deg, rgba(17,19,26,.96) 0%, rgba(15,17,23,.96) 100%);
+      border:1px solid rgba(34,38,54,.85);
+      border-radius:var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      max-height: calc(100vh - 160px);
+    }
+    .sheetToolbar{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(34,38,54,.75);
+      background:rgba(11,12,16,.4);
+    }
+    .sheetToolbar h2{ margin:0; font-size:14px; letter-spacing:.2px; color:var(--muted); font-weight:650; text-transform:uppercase; }
+    .sheetToolbar .spacer{ flex:1; min-width:8px; }
+    .sheetToolbar select{ padding:8px 10px; min-height:40px; border-radius:12px; font-size:13px; }
+    .sheetScroll{
+      overflow:auto;
+      flex:1;
+      min-height:0;
+    }
+    .sheetTable{
+      width:100%;
+      border-collapse:collapse;
+      font-size:14px;
+    }
+    .sheetTable th{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:rgba(17,19,26,.98);
+      border-bottom:2px solid rgba(34,38,54,.9);
+      padding:10px 12px;
+      text-align:left;
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.25px;
+      color:var(--muted);
+    }
+    .sheetTable td{
+      border-bottom:1px solid rgba(34,38,54,.6);
+      padding:10px 12px;
+      vertical-align:top;
+    }
+    .sheetTable tbody tr{
+      transition:background .12s ease;
+    }
+    .sheetTable tbody tr:hover{
+      background:rgba(122,162,255,.06);
+    }
+    .sheetTable tbody tr.sheetNewRow{ background:rgba(122,162,255,.08); }
+    .sheetTable tbody tr.sheetNewRow:hover{ background:rgba(122,162,255,.1); }
+    .sheetTable .colAuthor{ width:14%; min-width:90px; }
+    .sheetTable .colTitle{ width:22%; min-width:140px; font-weight:700; color:var(--text); }
+    .sheetTable .colDesc{ width:auto; max-width:40%; color:var(--muted); font-size:13px; line-height:1.35; }
+    .sheetTable .colStatus{ width:10%; min-width:72px; }
+    .sheetTable .colActions{ width:80px; text-align:right; }
+    .sheetTable input.cellInput, .sheetTable textarea.cellInput{
+      width:100%;
+      min-width:0;
+      padding:8px 10px;
+      font-size:14px;
+      border-radius:10px;
+      border:1px solid rgba(34,38,54,.8);
+      background:rgba(11,12,16,.7);
+      color:var(--text);
+      outline:none;
+    }
+    .sheetTable input.cellInput:focus, .sheetTable textarea.cellInput:focus{
+      border-color:var(--accent);
+      box-shadow:0 0 0 2px rgba(122,162,255,.2);
+    }
+    .sheetTable textarea.cellInput{ min-height:36px; resize:vertical; line-height:1.3; }
+    .sheetTable .cellDesc{ white-space:pre-wrap; word-break:break-word; max-height:3.6em; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; }
+    .sheetTable .statusDot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+    .sheetTable .statusDot.TO_READ{ background:var(--faint); }
+    .sheetTable .statusDot.READING{ background:var(--accent); }
+    .sheetTable .statusDot.DONE{ background:var(--good); }
+    .sheetTable .actBtn{ padding:6px 10px; margin-left:4px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:rgba(34,38,54,.8); color:var(--muted); }
+    .sheetTable .actBtn:hover{ background:rgba(122,162,255,.25); color:var(--text); }
+    .sheetTable .actBtn.del:hover{ background:rgba(255,92,122,.2); color:var(--bad); }
+
+    .readingFeedback{
+      border-top:1px solid rgba(34,38,54,.75);
+      padding:12px 14px;
+      background:rgba(11,12,16,.4);
+    }
+    .readingFeedback summary{ cursor:pointer; font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.2px; user-select:none; }
+    .readingFeedback summary:hover{ color:var(--text); }
+    .readingFeedback .feedbackBody{ margin-top:10px; }
+    .readingFeedback textarea{ min-height:70px; margin-bottom:8px; }
   </style>
 </head>
 <body>
@@ -196,6 +295,7 @@
   // Storage keys
   const LS_CARDS = "vocabforge.cards.v3";
   const LS_READING = "vocabforge.reading.v2";
+  const LS_READING_FEEDBACK = "vocabforge.reading.feedback.v1";
   const LS_META = "vocabforge.meta.v2";
 
   // OpenAI
@@ -1213,151 +1313,215 @@
     return el;
   }
 
+  function getReadingFeedback(){
+    return (localStorage.getItem(LS_READING_FEEDBACK) || "").trim();
+  }
+  function setReadingFeedback(text){
+    localStorage.setItem(LS_READING_FEEDBACK, (text || "").trim());
+  }
+
   function viewReading(items){
     const el = document.createElement("div");
-    el.className = "grid";
+    el.className = "readingSheet";
 
-    const left = document.createElement("div");
-    left.className = "card";
-    left.innerHTML = `
-      <div class="hd"><h2>Reading</h2><span class="badge">Sync list</span></div>
-      <div class="bd">
-        <div class="field">
-          <label>Type</label>
-          <select id="rtype">
-            <option value="article">Article</option>
-            <option value="book">Book</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Title</label>
-          <input id="rtitle" type="text" placeholder="Title" />
-        </div>
-        <div class="field" id="authorWrap">
-          <label>Author (book)</label>
-          <input id="rauthor" type="text" placeholder="Author" />
-        </div>
-        <div class="field" id="urlWrap">
-          <label>URL (article)</label>
-          <input id="rurl" type="url" placeholder="https://..." />
-        </div>
-        <div class="field" id="pdfWrap" style="display:none">
-          <label>Attach PDF (book)</label>
-          <input id="rpdf" type="file" accept="application/pdf" />
-          <div class="hint">PDF is device-local (offline). Your Reading List syncs; PDFs do not sync.</div>
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select id="rstatus">
-            <option value="TO_READ">To Read</option>
-            <option value="READING">Reading</option>
-            <option value="DONE">Done</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Notes</label>
-          <textarea id="rnotes" placeholder="Quick notes, quotes to save, etc."></textarea>
-        </div>
-        <div class="btnRow">
-          <button class="btn full" id="addReading">Add</button>
-        </div>
-      </div>
-    `;
+    const filterVal = { current: "ALL" };
+    function getFiltered(){
+      const all = loadReading();
+      const f = filterVal.current;
+      return f === "ALL" ? all : all.filter(x => x.type === f);
+    }
 
-    const right = document.createElement("div");
-    right.className = "card";
-    right.innerHTML = `
-      <div class="hd"><h2>List</h2><span class="badge">Tap to open</span></div>
-      <div class="bd">
-        <div class="field">
-          <label>Filter</label>
-          <select id="filter">
+    el.innerHTML = `
+      <div class="sheetToolbar">
+        <h2>Reading</h2>
+        <span class="badge">Sync list</span>
+        <div class="spacer"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);">
+          Filter
+          <select id="sheetFilter">
             <option value="ALL">All</option>
             <option value="article">Articles</option>
             <option value="book">Books</option>
           </select>
+        </label>
+        <button class="btn small" id="sheetUploadToggle">Upload list</button>
+        <button class="btn small secondary" id="sheetClearAll">Clear all</button>
+      </div>
+      <div class="sheetScroll">
+        <table class="sheetTable">
+          <thead>
+            <tr>
+              <th class="colAuthor">Author</th>
+              <th class="colTitle">Book / Title</th>
+              <th class="colDesc">Description</th>
+              <th class="colStatus">Status</th>
+              <th class="colActions"></th>
+            </tr>
+          </thead>
+          <tbody id="sheetBody"></tbody>
+          <tbody id="sheetNewRowWrap">
+            <tr class="sheetNewRow" id="sheetNewRow">
+              <td class="colAuthor"><input type="text" class="cellInput" id="newAuthor" placeholder="Author" /></td>
+              <td class="colTitle"><input type="text" class="cellInput" id="newTitle" placeholder="Book or title" /></td>
+              <td class="colDesc"><textarea class="cellInput" id="newDesc" placeholder="Description / notes" rows="1"></textarea></td>
+              <td class="colStatus"></td>
+              <td class="colActions"><button class="btn small" id="sheetAddRow">Add row</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="sheetUploadArea" style="display:none; padding:12px 14px; border-top:1px solid rgba(34,38,54,.75); background:rgba(11,12,16,.5);">
+        <div class="field">
+          <label>Paste or upload book list (Author — Title — Description, one per line)</label>
+          <textarea id="uploadBookList" placeholder="Paste here or upload .txt below" rows="3"></textarea>
+          <input id="uploadBookFile" type="file" accept=".txt,text/plain" style="margin-top:6px" />
+          <div class="btnRow" style="margin-top:8px">
+            <button class="btn full" id="addBookList">Add these books</button>
+          </div>
         </div>
-        <div class="list" id="rlist"></div>
+      </div>
+      <div class="readingFeedback">
+        <details id="feedbackDetails">
+          <summary>Feedback on this list</summary>
+          <div class="feedbackBody">
+            <textarea id="readingFeedbackText" placeholder="Notes, goals, or thoughts about your reading list…"></textarea>
+            <button class="btn small" id="saveReadingFeedback">Save feedback</button>
+          </div>
+        </details>
       </div>
     `;
 
-    el.appendChild(left);
-    el.appendChild(right);
+    const sheetBody = $("#sheetBody", el);
+    const sheetFilter = $("#sheetFilter", el);
+    const sheetUploadToggle = $("#sheetUploadToggle", el);
+    const sheetUploadArea = $("#sheetUploadArea", el);
+    const newAuthor = $("#newAuthor", el);
+    const newTitle = $("#newTitle", el);
+    const newDesc = $("#newDesc", el);
+    const sheetAddRow = $("#sheetAddRow", el);
+    const uploadBookList = $("#uploadBookList", el);
+    const uploadBookFile = $("#uploadBookFile", el);
+    const addBookList = $("#addBookList", el);
+    const readingFeedbackText = $("#readingFeedbackText", el);
+    const saveReadingFeedback = $("#saveReadingFeedback", el);
 
-    const rtype = $("#rtype", left);
-    const authorWrap = $("#authorWrap", left);
-    const urlWrap = $("#urlWrap", left);
-    const pdfWrap = $("#pdfWrap", left);
+    readingFeedbackText.value = getReadingFeedback();
+    if (getReadingFeedback()) $("#feedbackDetails", el).setAttribute("open", "");
 
-    function syncType(){
-      const t = rtype.value;
-      authorWrap.style.display = t === "book" ? "flex" : "none";
-      urlWrap.style.display = t === "article" ? "flex" : "none";
-      pdfWrap.style.display = t === "book" ? "flex" : "none";
+    function drawRows(){
+      const show = getFiltered();
+      sheetBody.innerHTML = "";
+      for (const it of show) {
+        const tr = document.createElement("tr");
+        const statusClass = (it.status || "TO_READ").replace(/\s/g, "_");
+        tr.innerHTML = `
+          <td class="colAuthor">${esc(it.author || "")}</td>
+          <td class="colTitle">${esc(it.title)}</td>
+          <td class="colDesc"><div class="cellDesc">${esc(it.notes || "")}</div></td>
+          <td class="colStatus"><span class="statusDot ${esc(statusClass)}"></span>${esc(it.status || "TO_READ")}</td>
+          <td class="colActions">
+            <button type="button" class="actBtn openBtn" data-id="${esc(it.id)}">Open</button>
+            <button type="button" class="actBtn del" data-id="${esc(it.id)}">Delete</button>
+          </td>
+        `;
+        tr.querySelector(".openBtn").onclick = () => setView("reading-item", { readingId: it.id });
+        tr.querySelector(".actBtn.del").onclick = async () => {
+          if (!confirm("Delete this item?")) return;
+          if (it.pdfId) await pdfDelete(it.pdfId);
+          const updated = loadReading().filter(x => x.id !== it.id);
+          saveReading(updated);
+          toast("Deleted.");
+          drawRows();
+          syncSoon();
+        };
+        sheetBody.appendChild(tr);
+      }
     }
-    rtype.onchange = syncType;
-    syncType();
 
-    $("#addReading", left).onclick = async () => {
-      const t = rtype.value;
-      const title = $("#rtitle", left).value.trim();
-      const author = $("#rauthor", left).value.trim();
-      const url = $("#rurl", left).value.trim();
-      const status = $("#rstatus", left).value;
-      const notes = $("#rnotes", left).value || "";
+    sheetFilter.value = filterVal.current;
+    sheetFilter.onchange = () => { filterVal.current = sheetFilter.value; drawRows(); };
+    drawRows();
 
-      if (!title) return toast("Title required.");
-      if (t === "article" && !url) return toast("URL required for articles.");
+    sheetUploadToggle.onclick = () => {
+      const open = sheetUploadArea.style.display !== "none";
+      sheetUploadArea.style.display = open ? "none" : "block";
+      sheetUploadToggle.textContent = open ? "Upload list" : "Hide upload";
+    };
 
+    $("#sheetClearAll", el).onclick = async () => {
+      if (!confirm("Delete all items in the reading list? This cannot be undone.")) return;
+      const all = loadReading();
+      for (const it of all) { if (it.pdfId) await pdfDelete(it.pdfId); }
+      saveReading([]);
+      drawRows();
+      syncSoon();
+      toast("Reading list cleared.");
+    };
+
+    function addOneRow(){
+      const author = newAuthor.value.trim();
+      const title = newTitle.value.trim();
+      const desc = newDesc.value.trim();
+      if (!title) return toast("Book / title required.");
       const all = loadReading();
       const tNow = now();
-      const item = { id: uid(), type: t, title, author, url, status, notes, pdfId: null, dateAdded: tNow, updatedAt: tNow };
-
-      if (t === "book") {
-        const f = $("#rpdf", left).files?.[0];
-        if (f) {
-          const pdfId = uid();
-          await pdfPut({ id: pdfId, name: f.name || `${title}.pdf`, mime: f.type || "application/pdf", blob: f });
-          item.pdfId = pdfId;
-        }
-      }
-
-      all.unshift(item);
+      all.unshift({ id: uid(), type: "book", title, author, url: "", status: "TO_READ", notes: desc, pdfId: null, dateAdded: tNow, updatedAt: tNow });
       saveReading(all);
-      toast("Saved.");
-      render();
+      newAuthor.value = "";
+      newTitle.value = "";
+      newDesc.value = "";
+      newTitle.focus();
+      drawRows();
+      syncSoon();
+      toast("Added.");
+    }
+
+    sheetAddRow.onclick = addOneRow;
+    newDesc.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addOneRow(); } });
+    newTitle.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addOneRow(); } });
+    newAuthor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); newTitle.focus(); } });
+
+    uploadBookFile.addEventListener("change", () => {
+      const f = uploadBookFile.files?.[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { uploadBookList.value = (r.result || "").trim(); };
+      r.readAsText(f);
+    });
+
+    addBookList.onclick = () => {
+      const raw = (uploadBookList.value || "").trim();
+      if (!raw) return toast("Paste book names or upload a .txt file first.");
+      const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const all = loadReading();
+      const tNow = now();
+      const existingKeys = new Set(all.map(x => (x.author + "|" + x.title).toLowerCase()));
+      let added = 0;
+      for (const line of lines) {
+        const parts = line.split(/\s*[—–-]\s*/).map(s => s.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const author = parts[0];
+        const title = parts[1];
+        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";
+        const key = (author + "|" + title).toLowerCase();
+        if (!title || existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        all.unshift({ id: uid(), type: "book", title, author, url: "", status: "TO_READ", notes, pdfId: null, dateAdded: tNow, updatedAt: tNow });
+        added++;
+      }
+      if (!added) return toast("No new books (duplicates or unparseable lines skipped).");
+      saveReading(all);
+      uploadBookList.value = "";
+      uploadBookFile.value = "";
+      toast(`Added ${added} book${added !== 1 ? "s" : ""}.`);
+      drawRows();
       syncSoon();
     };
 
-    const list = $("#rlist", right);
-    const filter = $("#filter", right);
-    const draw = () => {
-      const all = loadReading();
-      const f = filter.value;
-      const show = (f === "ALL") ? all : all.filter(x => x.type === f);
-      list.innerHTML = "";
-      if (!show.length) {
-        list.innerHTML = `<div class="hint">No items yet.</div>`;
-        return;
-      }
-      for (const it of show) {
-        const div = document.createElement("div");
-        div.className = "item";
-        const sub = it.type === "article" ? it.url : (it.author ? `by ${it.author}` : "Book");
-        const pdfTag = it.pdfId ? " · PDF" : "";
-        div.innerHTML = `
-          <div>
-            <div class="w">${esc(it.title)}</div>
-            <div class="meta">${esc(it.status)} · ${esc(sub)}${pdfTag}</div>
-          </div>
-          <div class="badge">Open</div>
-        `;
-        div.onclick = () => setView("reading-item", { readingId: it.id });
-        list.appendChild(div);
-      }
+    saveReadingFeedback.onclick = () => {
+      setReadingFeedback(readingFeedbackText.value);
+      toast("Feedback saved.");
     };
-    filter.onchange = draw;
-    draw();
 
     return el;
   }
