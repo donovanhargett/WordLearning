@@ -1365,7 +1365,7 @@
               <td class="colTitle"><input type="text" class="cellInput" id="newTitle" placeholder="Book or title" /></td>
               <td class="colDesc"><textarea class="cellInput" id="newDesc" placeholder="Description / notes" rows="1"></textarea></td>
               <td class="colStatus"></td>
-              <td class="colActions"><button class="btn small" id="sheetAddRow">Add row</button></td>
+              <td class="colActions"><button type="button" class="btn small" id="sheetAddRow">Add row</button></td>
             </tr>
           </tbody>
         </table>
@@ -1466,11 +1466,15 @@
       toast("Reading list cleared.");
     };
 
+    let addRowCooldown = false;
     function addOneRow(){
+      if (addRowCooldown) return;
       const author = newAuthor.value.trim();
       const title = newTitle.value.trim();
       const desc = newDesc.value.trim();
       if (!title) return toast("Book / title required.");
+      addRowCooldown = true;
+      setTimeout(() => { addRowCooldown = false; }, 400);
       const all = loadReading();
       const tNow = now();
       all.unshift({ id: uid(), type: "book", title, author, url: "", status: "TO_READ", notes: desc, pdfId: null, dateAdded: tNow, updatedAt: tNow });
@@ -1485,9 +1489,9 @@
     }
 
     sheetAddRow.onclick = addOneRow;
-    newDesc.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addOneRow(); } });
-    newTitle.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addOneRow(); } });
-    newAuthor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); newTitle.focus(); } });
+    newDesc.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.repeat) { e.preventDefault(); addOneRow(); } });
+    newTitle.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); addOneRow(); } });
+    newAuthor.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); newTitle.focus(); } });
 
     uploadBookFile.addEventListener("change", () => {
       const f = uploadBookFile.files?.[0];
