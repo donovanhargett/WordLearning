@@ -1,0 +1,7 @@
+[
+  {
+    "file": "index.html",
+    "find": "<input id=\"apiKey\" type=\"text\" ... />",
+    "replace": "<input id=\"apiKey\" type=\"password\" ... />"
+  }
+]
