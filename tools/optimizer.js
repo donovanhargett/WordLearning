@@ -1,10 +1,9 @@
 /**
- * Optimizer runner
- * - Reads instructions from optimizer/CHANGES.md
- * - Creates a branch, commits a run log, pushes, opens a PR
- *
- * Requires repo secret: OPTIMIZER_PAT
- * Node 20+ (GitHub Actions ubuntu-latest uses Node 20)
+ * Optimizer runner (v2)
+ * - Reads optimizer/CHANGES.md (for PR description)
+ * - Applies optimizer/PATCH.diff (git diff patch)
+ * - Commits + pushes branch
+ * - Opens PR
  */
 
 const fs = require("fs");
@@ -40,14 +39,22 @@ async function githubCreatePR({ repo, pat, title, head, base, body }) {
 
 (async () => {
   const changesPath = "optimizer/CHANGES.md";
+  const patchPath = "optimizer/PATCH.diff";
+
   if (!fs.existsSync(changesPath)) {
     console.log(`No ${changesPath} found. Nothing to do.`);
     return;
   }
+  if (!fs.existsSync(patchPath)) {
+    console.log(`No ${patchPath} found. Nothing to do.`);
+    return;
+  }
 
   const changes = fs.readFileSync(changesPath, "utf8").trim();
-  if (!changes || changes.startsWith("#")) {
-    console.log(`No actionable instructions in ${changesPath}.`);
+  const patch = fs.readFileSync(patchPath, "utf8").trim();
+
+  if (!patch || patch.startsWith("#")) {
+    console.log(`No actionable patch in ${patchPath}.`);
     return;
   }
 
@@ -60,17 +67,17 @@ async function githubCreatePR({ repo, pat, title, head, base, body }) {
   const branch = `optimizer/${stamp}`;
   sh(`git checkout -b ${branch}`);
 
-  // Write run log
-  fs.mkdirSync("optimizer", { recursive: true });
-  const logPath = "optimizer/LAST_RUN.md";
-  fs.writeFileSync(
-    logPath,
-    `# Optimizer Run\n\n## Timestamp\n${new Date().toISOString()}\n\n## Requested changes\n\n${changes}\n`
-  );
+  // Apply patch
+  // --whitespace=nowarn helps with copy/pasted patches
+  sh(`git apply --whitespace=nowarn ${patchPath}`);
 
-  // Commit
-  sh(`git add ${logPath}`);
-  sh(`git commit -m "chore: record optimizer run request"`);
+  // Show what changed (debug visibility in Actions logs)
+  sh(`git status`);
+  sh(`git diff --stat`);
+
+  // Commit all changes
+  sh(`git add -A`);
+  sh(`git commit -m "optimizer: apply requested changes"`);
 
   // Push using PAT
   const remoteUrl = `https://x-access-token:${pat}@github.com/${repo}.git`;
@@ -79,7 +86,7 @@ async function githubCreatePR({ repo, pat, title, head, base, body }) {
 
   // Open PR
   const title = `Optimizer update (${stamp})`;
-  const body = `This PR was created by Optimizer Bot.\n\nRequested changes:\n\n${changes}\n`;
+  const body = `This PR was created by Optimizer Bot.\n\nRequested changes:\n\n${changes || "(none)"}\n`;
 
   const pr = await githubCreatePR({
     repo,
