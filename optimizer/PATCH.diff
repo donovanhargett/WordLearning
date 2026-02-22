@@ -1,33 +1,30 @@
 diff --git a/index.html b/index.html
-index 1111111..2222222 100644
 --- a/index.html
 +++ b/index.html
-@@ -1,6 +1,6 @@
- <!doctype html>
- <html lang="en">
- <head>
-@@
-   function viewDashboard(cards) {
-@@
--        <div class="field" style="margin-top:10px">
-+        <div class="field" style="margin-top:10px">
-           <label>OpenAI API Key</label>
+@@ -1,1 +1,1 @@
 -          <input id="apiKey" type="text" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
 +          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
-           <div class="hint">Stored only on this device (localStorage). Don’t reuse a key you care about.</div>
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,1 +1,2 @@
+-          <div class="hint">Stored only on this device (localStorage). Don’t reuse a key you care about.</div>
++          <div class="hint">Stored only on this device (localStorage). Don’t reuse a key you care about.</div>
 +          <div class="hint" id="keyStatus"></div>
-         </div>
-         <div class="btnRow">
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,3 +1,4 @@
            <button class="btn secondary" id="saveKey">Save key</button>
            <button class="btn secondary" id="clearKey">Clear</button>
            <button class="btn secondary" id="testKey">Test</button>
 +          <button class="btn secondary" id="revealKey">Reveal</button>
-         </div>
-@@
--    // AI settings
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,2 +1,12 @@
 -    const apiKeyInput = $("#apiKey", left);
 -    if (apiKeyInput) apiKeyInput.value = getOpenAIKey();
-+    // AI settings (do NOT autofill the key)
 +    const apiKeyInput = $("#apiKey", left);
 +    const keyStatus = $("#keyStatus", left);
 +    const saved = getOpenAIKey();
@@ -36,15 +33,15 @@ index 1111111..2222222 100644
 +      apiKeyInput.value = "";
 +    }
 +    if (keyStatus) {
-+      keyStatus.textContent = saved
-+        ? `Key saved (ends with …${saved.slice(-4)}).`
-+        : "No key saved.";
++      keyStatus.textContent = saved ? `Key saved (ends with …${saved.slice(-4)}).` : "No key saved.";
 +    }
- 
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,3 +1,11 @@
      $("#saveKey", left).onclick = () => {
--      setOpenAIKey(apiKeyInput.value);
+       setOpenAIKey(apiKeyInput.value);
 -      toast(getOpenAIKey() ? "Saved key." : "Key cleared.");
-+      setOpenAIKey(apiKeyInput.value);
 +      const saved2 = getOpenAIKey();
 +      if (keyStatus) keyStatus.textContent = saved2 ? `Key saved (ends with …${saved2.slice(-4)}).` : "No key saved.";
 +      if (apiKeyInput) {
@@ -55,6 +52,10 @@ index 1111111..2222222 100644
 +      if (r) r.textContent = "Reveal";
 +      toast(saved2 ? "Saved key." : "Key cleared.");
      };
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,4 +1,11 @@
      $("#clearKey", left).onclick = () => {
        setOpenAIKey("");
 -      apiKeyInput.value = "";
@@ -67,6 +68,10 @@ index 1111111..2222222 100644
 +      if (r) r.textContent = "Reveal";
        toast("Cleared.");
      };
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -1,0 +1,11 @@
 +    let revealed = false;
 +    $("#revealKey", left).onclick = () => {
 +      const k = getOpenAIKey();
@@ -76,13 +81,3 @@ index 1111111..2222222 100644
 +      apiKeyInput.value = revealed ? k : "";
 +      $("#revealKey", left).textContent = revealed ? "Hide" : "Reveal";
 +    };
-     $("#testKey", left).onclick = async () => {
-       try {
-         await openaiResponses({ input: [{ role: "user", content: "Reply with STRICT JSON: {\"ok\":true}" }] });
-         toast("Key works.");
-       } catch (e) {
-         if (String(e.message || e) === "NO_KEY") toast("Paste your API key first.");
-         else toast("Key test failed.");
-console.warn(e);
-       }
-     };
