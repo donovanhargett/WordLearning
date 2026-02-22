@@ -293,23 +293,24 @@
 
 <script>
 (() => {
-  // Storage keys
-  const LS_CARDS = "vocabforge.cards.v3";
-  const LS_READING = "vocabforge.reading.v2";
-  const LS_READING_FEEDBACK = "vocabforge.reading.feedback.v1";
-  const LS_META = "vocabforge.meta.v2";
+  // No localStorage for data — Gist is the single source of truth; credentials in sessionStorage (session-only)
+  const SS_OPENAI_KEY = "vocabforge.openaiKey.v1";
+  const SS_GH_TOKEN = "vocabforge.ghToken.v1";
+  const SS_GIST_ID = "vocabforge.gistId.v1";
 
-  // OpenAI
-  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
   const OPENAI_MODEL = "gpt-4o-mini";
-
-  // GitHub Gist Sync
-  const LS_GH_TOKEN = "vocabforge.ghToken.v1";
-  const LS_GIST_ID = "vocabforge.gistId.v1";
 
   const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
 
-  // IndexedDB for PDFs (device-local only)
+  // In-memory state only; data is loaded from Gist and pushed on every change
+  const appState = {
+    cards: [],
+    reading: [],
+    updatedAt: 0,
+    readingFeedback: ""
+  };
+
+  // IndexedDB for PDFs (device-local only; optional — disable if you want zero local storage)
   const DB_NAME = "vocabforge";
   const DB_VER = 1;
   const STORE_PDFS = "pdfs";
@@ -343,12 +344,12 @@
 
   // ----- OpenAI -----
   function getOpenAIKey(){
-    return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
+    return (sessionStorage.getItem(SS_OPENAI_KEY) || "").trim();
   }
   function setOpenAIKey(key){
     const k = (key || "").trim();
-    if (!k) localStorage.removeItem(LS_OPENAI_KEY);
-    else localStorage.setItem(LS_OPENAI_KEY, k);
+    if (!k) sessionStorage.removeItem(SS_OPENAI_KEY);
+    else sessionStorage.setItem(SS_OPENAI_KEY, k);
   }
 
   async function openaiResponses({ input }){
@@ -420,20 +421,20 @@
 
   // ----- Sync (GitHub Gist) -----
   function getGistId(){
-    return (localStorage.getItem(LS_GIST_ID) || "").trim();
+    return (sessionStorage.getItem(SS_GIST_ID) || "").trim();
   }
   function setGistId(id){
     const v = (id || "").trim();
-    if (!v) localStorage.removeItem(LS_GIST_ID);
-    else localStorage.setItem(LS_GIST_ID, v);
+    if (!v) sessionStorage.removeItem(SS_GIST_ID);
+    else sessionStorage.setItem(SS_GIST_ID, v);
   }
   function getGhToken(){
-    return (localStorage.getItem(LS_GH_TOKEN) || "").trim();
+    return (sessionStorage.getItem(SS_GH_TOKEN) || "").trim();
   }
   function setGhToken(t){
     const v = (t || "").trim();
-    if (!v) localStorage.removeItem(LS_GH_TOKEN);
-    else localStorage.setItem(LS_GH_TOKEN, v);
+    if (!v) sessionStorage.removeItem(SS_GH_TOKEN);
+    else sessionStorage.setItem(SS_GH_TOKEN, v);
   }
 
   function syncSetStatus(text){
@@ -463,13 +464,14 @@
     const content = file?.content;
     const parsed = safeJsonParse(content || "");
     if (!parsed) {
-      return { version: 1, updatedAt: 0, cards: [], reading: [] };
+      return { version: 1, updatedAt: 0, cards: [], reading: [], readingFeedback: "" };
     }
     return {
       version: parsed.version || 1,
       updatedAt: Number(parsed.updatedAt || 0),
       cards: Array.isArray(parsed.cards) ? parsed.cards : [],
-      reading: Array.isArray(parsed.reading) ? parsed.reading : []
+      reading: Array.isArray(parsed.reading) ? parsed.reading : [],
+      readingFeedback: typeof parsed.readingFeedback === "string" ? parsed.readingFeedback : ""
     };
   }
 
@@ -526,21 +528,51 @@
   function getLocalPayload(){
     return {
       version: 1,
-      updatedAt: getLocalUpdatedAt(),
-      cards: loadCards(),
-      reading: loadReading()
+      updatedAt: appState.updatedAt,
+      cards: appState.cards,
+      reading: appState.reading,
+      readingFeedback: appState.readingFeedback
     };
   }
 
   function getLocalUpdatedAt(){
-    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
-    return Number(meta.updatedAt || 0);
+    return Number(appState.updatedAt || 0);
   }
 
   function bumpLocalUpdatedAt(){
-    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
-    meta.updatedAt = now();
-    localStorage.setItem(LS_META, JSON.stringify(meta));
+    appState.updatedAt = now();
+  }
+
+  let pushToGistTimer = null;
+  async function pushToGist(){
+    if (!getGhToken() || !getGistId()) return;
+    if (!navigator.onLine) return;
+    try {
+      await gistPutData({
+        version: 1,
+        updatedAt: appState.updatedAt,
+        cards: appState.cards,
+        reading: appState.reading,
+        readingFeedback: appState.readingFeedback
+      });
+      syncSetStatus("ok");
+    } catch (e) {
+      console.warn("Push to gist failed:", e);
+    }
+  }
+  function pushToGistSoon(immediate = false){
+    if (!getGhToken() || !getGistId()) return;
+    if (immediate) {
+      if (pushToGistTimer) clearTimeout(pushToGistTimer);
+      pushToGistTimer = null;
+      pushToGist();
+      return;
+    }
+    if (pushToGistTimer) return;
+    pushToGistTimer = setTimeout(() => {
+      pushToGistTimer = null;
+      pushToGist();
+    }, 800);
   }
 
   async function syncOnce(){
@@ -571,13 +603,19 @@
         ...mergedReading.map(x => Number(x.updatedAt || 0))
       );
 
-      // Write merged to local
-      saveCards(mergedCards, { silentBump: true });
-      saveReading(mergedReading, { silentBump: true });
-      setLocalUpdatedAt(mergedUpdatedAt);
+      // Merge readingFeedback: prefer longer non-empty
+      const localFb = (local.readingFeedback || "").trim();
+      const remoteFb = (remote.readingFeedback || "").trim();
+      const mergedFeedback = remoteFb.length >= localFb.length ? remoteFb : localFb;
+
+      // Write merged to in-memory state
+      appState.cards = mergedCards;
+      appState.reading = mergedReading;
+      appState.updatedAt = mergedUpdatedAt;
+      appState.readingFeedback = mergedFeedback;
 
       // Push merged back to remote (keeps both devices converged)
-      await gistPutData({ version: 1, updatedAt: mergedUpdatedAt, cards: mergedCards, reading: mergedReading });
+      await gistPutData({ version: 1, updatedAt: mergedUpdatedAt, cards: mergedCards, reading: mergedReading, readingFeedback: mergedFeedback });
 
       syncSetStatus("ok");
     } catch (e) {
@@ -602,9 +640,7 @@
   }
 
   function setLocalUpdatedAt(ts){
-    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
-    meta.updatedAt = Number(ts || 0);
-    localStorage.setItem(LS_META, JSON.stringify(meta));
+    appState.updatedAt = Number(ts || 0);
   }
 
   // ----- Data models -----
@@ -624,34 +660,33 @@
     }).filter(e => e.t);
   }
 
+  function normalizeCardsArray(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(c => ({
+      id: c.id || uid(),
+      word: c.word || "",
+      definition: c.definition ?? "",
+      examples: c.examples ?? "",
+      replaces: c.replaces ?? "",
+      mySentence: c.mySentence ?? "",
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+      box: clamp((c.box ?? 1), 1, 3),
+      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now(),
+      updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : (c.dateAdded || now())
+    }));
+  }
+
   function loadCards(){
-    const raw = localStorage.getItem(LS_CARDS);
-    if (!raw) return [];
-    const parsed = safeJsonParse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(c => {
-      const card = {
-        id: c.id || uid(),
-        word: c.word || "",
-        definition: c.definition ?? "",
-        examples: c.examples ?? "",
-        replaces: c.replaces ?? "",
-        mySentence: c.mySentence ?? "",
-        mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
-        timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
-        nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
-        box: clamp((c.box ?? 1), 1, 3),
-        lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
-        dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now(),
-        updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : (c.dateAdded || now())
-      };
-      return card;
-    });
+    return normalizeCardsArray(appState.cards);
   }
 
   function saveCards(cards, opts={}){
-    localStorage.setItem(LS_CARDS, JSON.stringify(cards));
+    appState.cards = normalizeCardsArray(cards);
     if (!opts.silentBump) bumpLocalUpdatedAt();
+    pushToGistSoon();
   }
 
   function computeStatus(card){
@@ -682,12 +717,9 @@
     return out;
   }
 
-  function loadReading(){
-    const raw = localStorage.getItem(LS_READING);
-    if (!raw) return [];
-    const parsed = safeJsonParse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(x => ({
+  function normalizeReadingArray(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(x => ({
       id: x.id || uid(),
       type: x.type || "article",
       title: x.title || "",
@@ -701,9 +733,14 @@
     }));
   }
 
+  function loadReading(){
+    return normalizeReadingArray(appState.reading);
+  }
+
   function saveReading(items, opts={}){
-    localStorage.setItem(LS_READING, JSON.stringify(items));
+    appState.reading = normalizeReadingArray(items);
     if (!opts.silentBump) bumpLocalUpdatedAt();
+    pushToGistSoon();
   }
 
   // ----- IndexedDB (PDFs device-local) -----
@@ -929,8 +966,9 @@
     el.innerHTML = `
       <div class="hd"><h2>Keys</h2><span class="badge">Sync · AI · Backup</span></div>
       <div class="bd">
+        <div class="hint" style="margin-bottom:12px">Nothing is stored locally. Data lives only in your Gist; keys are session-only (cleared when you close the tab).</div>
         <div style="font-weight:900">Sync (GitHub Gist)</div>
-        <div class="hint">Keeps phone + computer in sync. Data is stored in your secret Gist.</div>
+        <div class="hint">Keeps devices in sync. Data is stored only in your secret Gist.</div>
         <div class="field" style="margin-top:10px">
           <label>Gist ID</label>
           <input id="gistId" type="text" placeholder="gist id" />
@@ -1348,10 +1386,11 @@
   }
 
   function getReadingFeedback(){
-    return (localStorage.getItem(LS_READING_FEEDBACK) || "").trim();
+    return (appState.readingFeedback || "").trim();
   }
   function setReadingFeedback(text){
-    localStorage.setItem(LS_READING_FEEDBACK, (text || "").trim());
+    appState.readingFeedback = (text || "").trim();
+    pushToGistSoon();
   }
 
   function viewReading(items){
@@ -1792,10 +1831,19 @@
     });
   }
 
-  function init(){
-    // Ensure meta exists
-    const metaRaw = localStorage.getItem(LS_META);
-    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now(), updatedAt: 0 }));
+  async function init(){
+    // Load data from Gist (no local persistence — Gist is source of truth)
+    if (getGhToken() && getGistId() && navigator.onLine) {
+      try {
+        const remote = await gistFetchData();
+        appState.cards = normalizeCardsArray(remote.cards || []);
+        appState.reading = normalizeReadingArray(remote.reading || []);
+        appState.updatedAt = Number(remote.updatedAt || 0);
+        appState.readingFeedback = typeof remote.readingFeedback === "string" ? remote.readingFeedback : "";
+      } catch (e) {
+        console.warn("Initial gist fetch failed:", e);
+      }
+    }
 
     // Initial routing
     const { view, id } = parseHash();
