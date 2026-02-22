@@ -611,6 +611,7 @@
     const apiKeyInput = $("#apiKey", left);
     const keyStatus = $("#keyStatus", left);
     const saved = getOpenAIKey();
+
     if (apiKeyInput) {
       apiKeyInput.type = "password";
       apiKeyInput.value = "";
@@ -631,6 +632,7 @@
       if (r) r.textContent = "Reveal";
       toast(saved2 ? "Saved key." : "Key cleared.");
     };
+
     $("#clearKey", left).onclick = () => {
       setOpenAIKey("");
       if (keyStatus) keyStatus.textContent = "No key saved.";
@@ -642,6 +644,7 @@
       if (r) r.textContent = "Reveal";
       toast("Cleared.");
     };
+
     let revealed = false;
     $("#revealKey", left).onclick = () => {
       const k = getOpenAIKey();
