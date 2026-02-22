@@ -126,7 +126,7 @@
       backdrop-filter: blur(12px);
       border-top:1px solid rgba(34,38,54,.7);
     }
-    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
     .tab{min-height:50px;border-radius:16px;background:rgba(17,19,26,.65);border:1px solid rgba(34,38,54,.85);color:var(--muted);font-weight:800;font-size:13px;}
     .tab.active{background:rgba(122,162,255,.14);border-color:rgba(122,162,255,.35);color:rgba(225,235,255,.98)}
 
@@ -287,6 +287,7 @@
         <div class="list" id="wordList"></div>
       </div>
     </div>
+    <div id="viewRoot"></div>
   </div>
 </main>
 
@@ -295,6 +296,7 @@
     <button class="tab" data-nav="home">Home</button>
     <button class="tab" data-nav="review">Review</button>
     <button class="tab" data-nav="reading">Reading</button>
+    <button class="tab" data-nav="keys">Keys</button>
   </div>
 </nav>
 
@@ -321,7 +323,35 @@
     $("#wordList").innerHTML = wordList || '<div class="hint">No words added yet.</div>';
   }
 
-  renderHome();
+  function renderKeys() {
+    const keys = {
+      openAIKey: localStorage.getItem("vocabforge.openaiKey.v1") || "Not set",
+      githubToken: localStorage.getItem("vocabforge.ghToken.v1") || "Not set",
+      gistId: localStorage.getItem("vocabforge.gistId.v1") || "Not set"
+    };
+
+    const keysHtml = Object.entries(keys).map(([key, value]) => {
+      return `<div class="field"><label>${esc(key)}</label><div>${esc(value)}</div></div>`;
+    }).join("");
+
+    $("#viewRoot").innerHTML = `<div class="wrap">${keysHtml}</div>`;
+  }
+
+  function render() {
+    const view = document.querySelector(".tab.active")?.dataset.nav || "home";
+    if (view === "home") renderHome();
+    else if (view === "keys") renderKeys();
+  }
+
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      render();
+    });
+  });
+
+  render();
 })();
 </script>
 </body>
