@@ -96,7 +96,7 @@
       border:1px solid rgba(122,162,255,.35);
       padding:12px 14px;
       border-radius:16px;
-      font-weight:700;
+font-weight:700;
       min-height:var(--tap);
       cursor:pointer;
       text-decoration:none;
@@ -157,7 +157,7 @@
     .tiny{font-size:12px;color:var(--faint)}
 
     .sentHist{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
-.sent{padding:10px 10px;border-radius:14px;background:rgba(11,12,16,.55);border:1px solid rgba(34,38,54,.85);color:rgba(231,234,240,.93);font-size:14px;white-space:pre-wrap;}
+    .sent{padding:10px 10px;border-radius:14px;background:rgba(11,12,16,.55);border:1px solid rgba(34,38,54,.85);color:rgba(231,234,240,.93);font-size:14px;white-space:pre-wrap;}
 
     .toast{
       position:fixed;left:50%;bottom:80px;transform:translateX(-50%);
@@ -173,7 +173,7 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       font-weight:650;z-index:50;
     }
-    .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px);}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px);}
 
     .dangerZone{border:1px solid rgba(255,92,122,.28);background:rgba(255,92,122,.06);border-radius:18px;padding:12px;}
   </style>
@@ -221,6 +221,9 @@
   const APP_NAME = "VocabForge";
   const LS_KEY = "vocabforge.cards.v1";
   const LS_META = "vocabforge.meta.v1";
+  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
+  // Cheap + good-enough for humor/examples
+  const OPENAI_MODEL = "gpt-4o-mini";
 
   const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
 
@@ -249,6 +252,102 @@
 
   function safeJsonParse(text) {
     try { return JSON.parse(text); } catch(e) { return null; }
+  }
+
+  function getOpenAIKey(){
+    return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
+  }
+  function setOpenAIKey(key){
+    const k = (key || "").trim();
+    if (!k) localStorage.removeItem(LS_OPENAI_KEY);
+    else localStorage.setItem(LS_OPENAI_KEY, k);
+  }
+
+  function normalizeSentenceHistory(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(x => {
+      if (typeof x === "string") return { t: x, at: null };
+      if (x && typeof x === "object") {
+        return {
+          t: String(x.t ?? x.text ?? "").trim(),
+          at: Number.isFinite(x.at) ? x.at : null,
+          grade: (x.grade === null || x.grade === undefined) ? null : Number(x.grade),
+          feedback: (x.feedback ?? x.fb ?? "") ? String(x.feedback ?? x.fb) : ""
+        };
+      }
+      return { t: "", at: null };
+    }).filter(e => e.t);
+  }
+
+  async function openaiResponses({ input }){
+    const key = getOpenAIKey();
+    if (!key) throw new Error("NO_KEY");
+
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input
+      })
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`OPENAI_${res.status}:${t.slice(0,200)}`);
+    }
+
+    return await res.json();
+  }
+
+  function extractTextFromResponses(json){
+    // Responses API returns output[] with content[] chunks
+    try {
+      const out = json?.output;
+      if (!Array.isArray(out)) return "";
+      let text = "";
+      for (const item of out) {
+        const content = item?.content;
+        if (!Array.isArray(content)) continue;
+        for (const c of content) {
+          if (c?.type === "output_text") text += (c.text || "");
+        }
+      }
+      return (text || "").trim();
+    } catch { return ""; }
+  }
+
+  async function generateCardFields(word){
+    const prompt = `You are VocabDeck. Create funny, usable Anki-front content for the word.\n\nWORD: ${word}\n\nReturn STRICT JSON with keys: definition (string), examples (string with 3-4 lines), replaces (string).\n\nRules:\n- definition: conversational, like a funny friend (not a dictionary).\n- examples: 3-4 separate lines. Funny/absurd/real-life scenarios: group chat, gym, sports takes, half-serious political arguments, dating stories, drunk observations.\n- replaces: basic words/phrases this upgrades (use quotes/slashes if helpful).\n- Keep it low-stakes and actually sayable. If the word is formal, show 1 serious use + 1-2 ironic casual uses.\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+
+    return {
+      definition: String(parsed.definition || "").trim(),
+      examples: String(parsed.examples || "").trim(),
+      replaces: String(parsed.replaces || "").trim()
+    };
+  }
+
+  async function gradeSentenceAI({ word, definition, examples, sentence }){
+    const prompt = `You are a strict but helpful usage coach. Grade whether the sentence uses the target word correctly and naturally.\n\nWORD: ${word}\n\nMeaning (context): ${definition || "(none)"}\n\nExamples (context):\n${examples || "(none)"}\n\nUSER SENTENCE:\n${sentence}\n\nReturn STRICT JSON with keys: grade (number 0-10), feedback (string, 1-3 sentences), corrected (string, optional).\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+    const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+
+    return {
+      grade: Number(parsed.grade),
+      feedback: String(parsed.feedback || "").trim(),
+      corrected: String(parsed.corrected || "").trim()
+    };
   }
 
   function normalizeWord(w){
@@ -281,7 +380,7 @@
       examples: c.examples ?? "",
       replaces: c.replaces ?? "",
       mySentence: c.mySentence ?? "",
-      mySentenceHistory: Array.isArray(c.mySentenceHistory) ? c.mySentenceHistory : [],
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
       status: c.status || "NEW",
       timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
       nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
@@ -337,10 +436,9 @@
   }
 
   function groupByStatus(cards) {
-    const groups = { NEW: [], LEARNING: [], FUNCTIONAL: [] };
+const groups = { NEW: [], LEARNING: [], FUNCTIONAL: [] };
     for (const c of cards) groups[computeStatus(c)].push(c);
-    for (const k of Object.keys(groups)) groups[k
-] = sortByWord(groups[k]);
+    for (const k of Object.keys(groups)) groups[k] = sortByWord(groups[k]);
     return groups;
   }
 
@@ -401,7 +499,7 @@
     else root.appendChild(viewDashboard(cards));
   }
 
-    function viewDashboard(cards) {
+  function viewDashboard(cards) {
     const { total, dueToday, mastered } = getStats(cards);
     const groups = groupByStatus(cards);
 
@@ -430,6 +528,24 @@
           <button class="btn secondary" id="exportBtn">Export JSON</button>
           <button class="btn secondary" id="importBtn">Import JSON</button>
           <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:850">AI (online)</div>
+        <div class="hint">Add your OpenAI API key to generate definition/examples/replaces. Reviews still work offline.</div>
+        <div class="field" style="margin-top:10px">
+          <label>OpenAI API Key</label>
+<input id="apiKey" type="text" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint">Stored only on this device (localStorage). Don’t reuse a key you care about.</div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveKey">Save key</button>
+          <button class="btn secondary" id="clearKey">Clear</button>
+          <button class="btn secondary" id="testKey">Test</button>
+        </div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn full" id="genNew">Generate for NEW cards</button>
         </div>
       </div>
     `;
@@ -465,6 +581,58 @@
       e.target.value = "";
     });
 
+    // AI settings
+    const apiKeyInput = $("#apiKey", left);
+    if (apiKeyInput) apiKeyInput.value = getOpenAIKey();
+
+    $("#saveKey", left).onclick = () => {
+      setOpenAIKey(apiKeyInput.value);
+      toast(getOpenAIKey() ? "Saved key." : "Key cleared.");
+    };
+    $("#clearKey", left).onclick = () => {
+      setOpenAIKey("");
+      apiKeyInput.value = "";
+      toast("Cleared.");
+    };
+    $("#testKey", left).onclick = async () => {
+      try {
+        await openaiResponses({ input: [{ role: "user", content: "Reply with STRICT JSON: {\"ok\":true}" }] });
+        toast("Key works.");
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Paste your API key first.");
+        else toast("Key test failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#genNew", left).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Paste your API key first.");
+        const all = loadCards();
+        const targets = all.filter(c => computeStatus(c) === "NEW");
+        if (!targets.length) return toast("No NEW cards to generate.");
+
+        // Generate sequentially to avoid rate-limit chaos
+        let done = 0;
+        for (const c of targets) {
+          toast(`Generating: ${c.word} (${done+1}/${targets.length})`);
+          const fields = await generateCardFields(c.word);
+          c.definition = c.definition || fields.definition;
+          c.examples = c.examples || fields.examples;
+          c.replaces = c.replaces || fields.replaces;
+          done++;
+          saveCards(all);
+        }
+        toast(`Generated ${done} cards.`);
+        render();
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Paste your API key first.");
+        else if (String(e.message || e).includes("BAD_JSON")) toast("AI returned weird format. Try again.");
+        else toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
     $$(".item[data-id]", right).forEach(node => {
       node.addEventListener("click", () => setView("edit-card", { editId: node.dataset.id }));
     });
@@ -472,7 +640,7 @@
     return el;
 
     function sectionHtml(status, list) {
-      const badgeClass = status === "NEW" ? "new" : status === "LEARNING" ? "learning" : "functional";
+const badgeClass = status === "NEW" ? "new" : status === "LEARNING" ? "learning" : "functional";
       const items = list.slice(0, 10).map(c => `
         <div class="item" data-id="${esc(c.id)}">
           <div>
@@ -490,6 +658,7 @@
       `;
     }
   }
+
   function viewAdd(cards) {
     const el = document.createElement("div");
     el.className = "card";
@@ -598,11 +767,10 @@
           <div>
             <div class="w">${esc(c.word)}</div>
             <div class="meta">Box ${c.box} · ${esc(nextDueText(c))} · Reviewed ${c.timesReviewed}×</div>
-          </div>
+</div>
           <div class="badge ${badgeClass}">${status}</div>
         `;
-
-    b.onclick = () => setView("edit-card", { editId: c.id });
+        b.onclick = () => setView("edit-card", { editId: c.id });
         list.appendChild(b);
       }
     }
@@ -647,7 +815,10 @@
             <div style="font-size:22px;font-weight:900">${esc(card.word)}</div>
             <div class="hint">Paste definition/examples/replaces here.</div>
           </div>
-          <button class="btn secondary small" id="toReview">Review this</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="btn secondary small" id="genAi">Generate (AI)</button>
+            <button class="btn secondary small" id="toReview">Review this</button>
+          </div>
         </div>
 
         <div class="hr"></div>
@@ -688,6 +859,23 @@
 
     $("#toReview", el).onclick = () => setView("review", { reviewId: card.id });
 
+    $("#genAi", el).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Add your OpenAI key on Dashboard first.");
+        toast(`Generating: ${card.word}`);
+        const fields = await generateCardFields(card.word);
+        // Overwrite (user can edit after)
+        $("#def", el).value = fields.definition;
+        $("#ex", el).value = fields.examples;
+        $("#rep", el).value = fields.replaces;
+        toast("Generated. Hit Save.");
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Add your OpenAI key on Dashboard first.");
+        else toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
     $("#save", el).onclick = () => {
       card.definition = $("#def", el).value || "";
       card.examples = $("#ex", el).value || "";
@@ -720,7 +908,7 @@
 
     if (maybeId) card = cards.find(c => c.id === maybeId) || null;
     if (!card) {
-  const sorted = [...due].sort((a,b) => {
+      const sorted = [...due].sort((a,b) => {
         if ((a.box||1) !== (b.box||1)) return (a.box||1) - (b.box||1);
         return (a.lastReviewedTs||0) - (b.lastReviewedTs||0);
       });
@@ -739,6 +927,7 @@
       </div>
     `;
     el.appendChild(top);
+
     if (!card) {
       const empty = document.createElement("div");
       empty.className = "card reviewCard";
@@ -792,8 +981,8 @@
 
     function renderBack() {
       const body = $("#reviewBody", reviewCard);
-      const hist = Array.isArray(card.mySentenceHistory) ? card.mySentenceHistory : [];
-      const lastFew = hist.slice().reverse().slice(0, 6);
+      const hist = normalizeSentenceHistory(card.mySentenceHistory);
+const lastFew = hist.slice().reverse().slice(0, 6);
 
       body.innerHTML = `
         <div class="bigWord">${esc(card.word)}</div>
@@ -803,7 +992,11 @@
         <div class="field" style="margin-top:12px">
           <label>My sentence</label>
           <textarea id="mysent" placeholder="Type it here…"></textarea>
-          <div class="hint">We save your sentence when you tap a rating.</div>
+          <div class="hint">Rate to move it in spaced repetition. You can also get an AI grade (online).</div>
+        </div>
+
+        <div class="btnRow">
+          <button class="btn secondary full" id="gradeBtn">Grade my sentence (AI)</button>
         </div>
 
         <div class="blockTitle">Save & Rate</div>
@@ -830,17 +1023,56 @@
       $("#editThis", body).onclick = () => setView("edit-card", { editId: card.id });
 
       const histEl = $("#hist", body);
-      for (const s of lastFew) {
+      for (const entry of lastFew) {
         const div = document.createElement("div");
         div.className = "sent";
-
-div.textContent = s;
+        const grade = (entry.grade === null || entry.grade === undefined || Number.isNaN(entry.grade)) ? "" : `\n\nGrade: ${entry.grade}/10`;
+        const fb = entry.feedback ? `\n${entry.feedback}` : "";
+        div.textContent = `${entry.t}${grade}${fb}`;
         histEl.appendChild(div);
       }
 
+      $("#gradeBtn", body).onclick = () => gradeCurrent();
       $("#good", body).onclick = () => rate("good");
       $("#meh", body).onclick = () => rate("meh");
       $("#bad", body).onclick = () => rate("bad");
+    }
+
+    async function gradeCurrent() {
+      const body = $("#reviewBody", reviewCard);
+      const sentence = ($("#mysent", body)?.value || "").trim();
+      if (!sentence) return toast("Type a sentence first.");
+      if (!getOpenAIKey()) return toast("Add your OpenAI key on Dashboard first.");
+
+      // Ensure the sentence exists as the latest history entry
+      card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+      card.mySentence = sentence;
+      card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+      saveCards(cards);
+
+      try {
+        toast("Grading…");
+        const g = await gradeSentenceAI({
+          word: card.word,
+          definition: card.definition,
+          examples: card.examples,
+          sentence
+        });
+
+        // Update last entry
+        const hist = normalizeSentenceHistory(card.mySentenceHistory);
+        const last = hist[hist.length - 1];
+        last.grade = Number.isFinite(g.grade) ? g.grade : null;
+        last.feedback = g.feedback || "";
+        card.mySentenceHistory = hist;
+        saveCards(cards);
+
+        toast(Number.isFinite(g.grade) ? `Grade: ${g.grade}/10` : "Graded.");
+        renderBack();
+      } catch (e) {
+        toast("Grade failed.");
+        console.warn(e);
+      }
     }
 
     function rate(kind) {
@@ -849,10 +1081,10 @@ div.textContent = s;
 
       if (sentence) {
         card.mySentence = sentence;
-        card.mySentenceHistory = Array.isArray(card.mySentenceHistory) ? card.mySentenceHistory : [];
-        card.mySentenceHistory.push(sentence);
+        card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+        card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
       } else {
-        card.mySentence = "";
+card.mySentence = "";
       }
 
       card.timesReviewed = (card.timesReviewed || 0) + 1;
@@ -913,7 +1145,7 @@ div.textContent = s;
       examples: c.examples ?? "",
       replaces: c.replaces ?? "",
       mySentence: c.mySentence ?? "",
-      mySentenceHistory: Array.isArray(c.mySentenceHistory) ? c.mySentenceHistory : [],
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
       status: c.status || "NEW",
       timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
       nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
@@ -953,12 +1185,12 @@ div.textContent = s;
   async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) {
       $("#swDot").classList.remove("on");
-$("#swText").textContent = "Offline cache: not supported";
+      $("#swText").textContent = "Offline cache: not supported";
       return;
     }
 
     try {
-      await navigator.serviceWorker.register('./sw.js');
+      const reg = await navigator.serviceWorker.register('./sw.js');
       await navigator.serviceWorker.ready;
       $("#swDot").classList.add("on");
       $("#swText").textContent = "Offline cache: ready";
@@ -984,7 +1216,7 @@ $("#swText").textContent = "Offline cache: not supported";
   function escAttr(s){ return esc(s).replaceAll("\n"," "); }
 
   function init() {
-    const metaRaw = localStorage.getItem(LS_META);
+const metaRaw = localStorage.getItem(LS_META);
     if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now() }));
 
     const { view, id } = parseHash();
