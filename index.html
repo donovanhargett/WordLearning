@@ -1352,21 +1352,27 @@
       const raw = (uploadBookList.value || "").trim();
       if (!raw) return toast("Paste book names or upload a .txt file first.");
       const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      if (!lines.length) return toast("No non-empty lines.");
       const all = loadReading();
       const tNow = now();
-      const existingTitles = new Set(all.map(x => x.title.toLowerCase()));
+      const existingKeys = new Set(all.map(x => (x.author + "|" + x.title).toLowerCase()));
       let added = 0;
-      for (const title of lines) {
-        if (existingTitles.has(title.toLowerCase())) continue;
-        existingTitles.add(title.toLowerCase());
-        all.unshift({ id: uid(), type: "book", title, author: "", url: "", status: "TO_READ", notes: "", pdfId: null, dateAdded: tNow, updatedAt: tNow });
+      for (const line of lines) {
+        const parts = line.split(/\s*[—–-]\s*/).map(s => s.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const author = parts[0];
+        const title = parts[1];
+        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";
+        const key = (author + "|" + title).toLowerCase();
+        if (!title || existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        all.unshift({ id: uid(), type: "book", title, author, url: "", status: "TO_READ", notes, pdfId: null, dateAdded: tNow, updatedAt: tNow });
         added++;
       }
+      if (!added) return toast("No new books to add (duplicates or unparseable lines skipped).");
       saveReading(all);
       uploadBookList.value = "";
       uploadBookFile.value = "";
-      toast(added ? `Added ${added} book${added !== 1 ? "s" : ""}.` : "No new books (duplicates skipped).");
+      toast(`Added ${added} book${added !== 1 ? "s" : ""}.`);
       render();
       syncSoon();
     };
