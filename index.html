@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0c10" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>VocabForge</title>
+
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --panel:#11131a;
+      --panel2:#0f1117;
+      --text:#e7eaf0;
+      --muted:#a7afc0;
+      --faint:#7f8798;
+      --line:#222636;
+      --accent:#7aa2ff;
+      --good:#3ddc97;
+      --meh:#ffcc66;
+      --bad:#ff5c7a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+      --radius2: 22px;
+      --tap: 52px;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:linear-gradient(180deg, #07080b 0%, var(--bg) 35%, #07080b 100%);
+      color:var(--text);
+      font-family:var(--font);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .app{min-height:100%;display:flex;flex-direction:column;}
+    header{
+      position:sticky; top:0; z-index:10;
+      background:rgba(11,12,16,.86);
+      backdrop-filter: blur(12px);
+      border-bottom:1px solid rgba(34,38,54,.7);
+      padding:16px 16px 12px 16px;
+    }
+    .toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:980px;margin:0 auto;}
+    .brand{display:flex;flex-direction:column;gap:2px;}
+    .brand .title{font-size:18px;font-weight:700;letter-spacing:.2px;}
+    .brand .sub{font-size:12px;color:var(--muted);}
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .pill{
+      border:1px solid rgba(34,38,54,.9);
+      background:rgba(17,19,26,.75);
+      color:var(--text);
+      border-radius:999px;
+      padding:8px 10px;
+      font-size:12px;
+      display:flex;align-items:center;gap:8px;
+      user-select:none;
+    }
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--faint)}
+    .dot.on{background:var(--good)}
+
+    main{flex:1;padding:14px 16px 96px 16px;}
+    .wrap{max-width:980px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;}
+    @media (min-width:860px){.grid{grid-template-columns:1.2fr .8fr;}}
+
+    .card{
+      background:linear-gradient(180deg, rgba(17,19,26,.92) 0%, rgba(15,17,23,.92) 100%);
+      border:1px solid rgba(34,38,54,.85);
+      border-radius:var(--radius2);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{padding:14px 14px 10px 14px;border-bottom:1px solid rgba(34,38,54,.75);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .card .hd h2{margin:0;font-size:14px;letter-spacing:.2px;color:var(--muted);font-weight:650;text-transform:uppercase;}
+    .card .bd{padding:14px}
+
+    .hint{font-size:12px;color:var(--faint);line-height:1.3}
+
+    .kpiRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+    .kpi{background:rgba(11,12,16,.6);border:1px solid rgba(34,38,54,.8);border-radius:14px;padding:12px;min-height:74px;}
+    .kpi .n{font-size:22px;font-weight:800}
+    .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap}
+    button, .btn{
+      appearance:none;border:none;
+      background:rgba(122,162,255,.16);
+      color:var(--text);
+      border:1px solid rgba(122,162,255,.35);
+      padding:12px 14px;
+      border-radius:16px;
+      font-weight:700;
+      min-height:var(--tap);
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;
+      user-select:none;
+    }
+    button:active{transform:translateY(1px)}
+    .btn.secondary{background:rgba(17,19,26,.75);border-color:rgba(34,38,54,.9);}
+    .btn.good{background:rgba(61,220,151,.16);border-color:rgba(61,220,151,.35)}
+    .btn.meh{background:rgba(255,204,102,.14);border-color:rgba(255,204,102,.35)}
+    .btn.bad{background:rgba(255,92,122,.14);border-color:rgba(255,92,122,.35)}
+    .btn.full{width:100%}
+    .btn.small{min-height:44px;padding:10px 12px;border-radius:14px;font-weight:650;font-size:13px}
+
+    .field{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+    label{font-size:12px;color:var(--muted);letter-spacing:.2px}
+    input[type="text"], textarea{
+      width:100%;
+      background:rgba(11,12,16,.65);
+      border:1px solid rgba(34,38,54,.9);
+      color:var(--text);
+      border-radius:16px;
+      padding:12px 12px;
+      font-size:16px;
+      outline:none;
+    }
+    textarea{min-height:140px;resize:vertical;line-height:1.35}
+
+    .list{display:flex;flex-direction:column;gap:8px;}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px;background:rgba(11,12,16,.55);border:1px solid rgba(34,38,54,.85);border-radius:16px;cursor:pointer;min-height:var(--tap);}
+    .item:active{transform:translateY(1px)}
+    .w{font-size:16px;font-weight:800;letter-spacing:.2px}
+    .meta{font-size:12px;color:var(--muted);margin-top:3px}
+
+    .badge{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid rgba(34,38,54,.9);background:rgba(17,19,26,.65);color:var(--muted);white-space:nowrap;}
+    .badge.new{border-color:rgba(122,162,255,.35);color:rgba(200,215,255,.95)}
+    .badge.learning{border-color:rgba(255,204,102,.35);color:rgba(255,220,160,.95)}
+    .badge.functional{border-color:rgba(61,220,151,.35);color:rgba(170,245,215,.95)}
+
+    .hr{height:1px;background:rgba(34,38,54,.85);margin:12px 0}
+
+    .tabs{
+      position:fixed;left:0;right:0;bottom:0;z-index:10;
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+      background:rgba(11,12,16,.86);
+      backdrop-filter: blur(12px);
+      border-top:1px solid rgba(34,38,54,.7);
+    }
+    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .tab{min-height:50px;border-radius:16px;background:rgba(17,19,26,.65);border:1px solid rgba(34,38,54,.85);color:var(--muted);font-weight:750;font-size:13px;}
+    .tab.active{background:rgba(122,162,255,.14);border-color:rgba(122,162,255,.35);color:rgba(225,235,255,.98)}
+
+    .reviewShell{min-height:calc(100vh - 140px);display:flex;flex-direction:column;gap:12px;}
+    .reviewCard{flex:1;border-radius:24px;}
+    .bigWord{font-size:34px;font-weight:900;letter-spacing:.3px;margin:0 0 10px 0;}
+    .blockTitle{font-size:12px;text-transform:uppercase;letter-spacing:.2px;color:var(--muted);margin:14px 0 6px 0;font-weight:700;}
+    .para{white-space:pre-wrap;line-height:1.42;color:rgba(231,234,240,.95);font-size:16px;}
+    .tiny{font-size:12px;color:var(--faint)}
+
+    .sentHist{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+    .sent{padding:10px 10px;border-radius:14px;background:rgba(11,12,16,.55);border:1px solid rgba(34,38,54,.85);color:rgba(231,234,240,.93);font-size:14px;white-space:pre-wrap;}
+
+    .toast{
+      position:fixed;left:50%;bottom:80px;transform:translateX(-50%);
+      background:rgba(17,19,26,.92);
+      border:1px solid rgba(34,38,54,.9);
+      border-radius:999px;
+      padding:10px 14px;
+      color:var(--text);
+      box-shadow:var(--shadow);
+      opacity:0;pointer-events:none;
+      transition:opacity .18s ease, transform .18s ease;
+      max-width:min(92vw,760px);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-weight:650;z-index:50;
+    }
+    .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+    .dangerZone{border:1px solid rgba(255,92,122,.28);background:rgba(255,92,122,.06);border-radius:18px;padding:12px;}
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <header>
+    <div class="toprow">
+      <div class="brand">
+        <div class="title">VocabForge</div>
+        <div class="sub">Local-first vocabulary flashcards · offline PWA</div>
+      </div>
+      <div class="pillrow">
+        <div class="pill" title="Offline cache status">
+          <span class="dot" id="swDot"></span>
+          <span id="swText">Offline cache: …</span>
+        </div>
+        <div class="pill" title="Storage">
+          <span class="dot on"></span>
+          <span id="storeText">localStorage</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap" id="viewRoot"></div>
+  </main>
+
+  <nav class="tabs">
+    <div class="inner">
+      <button class="tab" data-nav="dashboard">Dashboard</button>
+      <button class="tab" data-nav="add">Add</button>
+      <button class="tab" data-nav="edit">Edit</button>
+      <button class="tab" data-nav="review">Review</button>
+    </div>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const APP_NAME = "VocabForge";
+  const LS_KEY = "vocabforge.cards.v1";
+  const LS_META = "vocabforge.meta.v1";
+  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
+  // Cheap + good-enough for humor/examples
+  const OPENAI_MODEL = "gpt-4o-mini";
+
+  const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
+
+  const $ = (sel, el=document) => el.querySelector(sel);
+  const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+  const now = () => Date.now();
+
+  function startOfTodayLocalTs() {
+    const d = new Date();
+    d.setHours(0,0,0,0);
+    return d.getTime();
+  }
+  function daysToMs(days){ return days * 24 * 60 * 60 * 1000; }
+  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+  function uid() {
+    return "c_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+  }
+
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.classList.add("on");
+    setTimeout(() => el.classList.remove("on"), 1400);
+  }
+
+  function safeJsonParse(text) {
+    try { return JSON.parse(text); } catch(e) { return null; }
+  }
+
+  function getOpenAIKey(){
+    return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
+  }
+  function setOpenAIKey(key){
+    const k = (key || "").trim();
+    if (!k) localStorage.removeItem(LS_OPENAI_KEY);
+    else localStorage.setItem(LS_OPENAI_KEY, k);
+  }
+
+  function normalizeSentenceHistory(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(x => {
+      if (typeof x === "string") return { t: x, at: null };
+      if (x && typeof x === "object") {
+        return {
+          t: String(x.t ?? x.text ?? "").trim(),
+          at: Number.isFinite(x.at) ? x.at : null,
+          grade: (x.grade === null || x.grade === undefined) ? null : Number(x.grade),
+          feedback: (x.feedback ?? x.fb ?? "") ? String(x.feedback ?? x.fb) : ""
+        };
+      }
+      return { t: "", at: null };
+    }).filter(e => e.t);
+  }
+
+  async function openaiResponses({ input }){
+    const key = getOpenAIKey();
+    if (!key) throw new Error("NO_KEY");
+
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input,
+        // Force strict JSON output for reliability
+        text: { format: { type: "json_object" } }
+      })
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`OPENAI_${res.status}:${t.slice(0,200)}`);
+    }
+
+    return await res.json();
+  }
+
+  function extractTextFromResponses(json){
+    try {
+      const out = json?.output;
+      if (!Array.isArray(out)) return "";
+      let text = "";
+      for (const item of out) {
+        const content = item?.content;
+        if (!Array.isArray(content)) continue;
+        for (const c of content) {
+          if (c?.type === "output_text") text += (c.text || "");
+        }
+      }
+      return (text || "").trim();
+    } catch { return ""; }
+  }
+
+  async function generateCardFields(word){
+    const prompt = `You are VocabDeck. Create funny, usable Anki-front content for the word.\n\nWORD: ${word}\n\nReturn STRICT JSON with keys: definition (string), examples (string with 3-4 lines), replaces (string).\n\nRules:\n- definition: conversational, like a funny friend (not a dictionary).\n- examples: 3-4 separate lines. Funny/absurd/real-life scenarios: group chat, gym, sports takes, half-serious political arguments, dating stories, drunk observations.\n- replaces: basic words/phrases this upgrades (use quotes/slashes if helpful).\n- Keep it low-stakes and actually sayable. If the word is formal, show 1 serious use + 1-2 ironic casual uses.\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+    const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+
+    return {
+      definition: String(parsed.definition || "").trim(),
+      examples: String(parsed.examples || "").trim(),
+      replaces: String(parsed.replaces || "").trim()
+    };
+  }
+
+  async function gradeSentenceAI({ word, definition, examples, sentence }){
+    const prompt = `You are a strict but helpful usage coach. Grade whether the sentence uses the target word correctly and naturally.\n\nWORD: ${word}\n\nMeaning (context): ${definition || "(none)"}\n\nExamples (context):\n${examples || "(none)"}\n\nUSER SENTENCE:\n${sentence}\n\nReturn STRICT JSON with keys: grade (number 0-10), feedback (string, 1-3 sentences), corrected (string, optional).\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+    const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+
+    return {
+      grade: Number(parsed.grade),
+      feedback: String(parsed.feedback || "").trim(),
+      corrected: String(parsed.corrected || "").trim()
+    };
+  }
+
+  function normalizeWord(w){
+    return (w || "").trim().replace(/\s+/g," ");
+  }
+
+  function uniqueWords(words){
+    const seen = new Set();
+    const out = [];
+    for (const w of words) {
+      const n = normalizeWord(w);
+      if (!n) continue;
+      const key = n.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(n);
+    }
+    return out;
+  }
+
+  function loadCards() {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return [];
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(c => ({
+      id: c.id || uid(),
+      word: c.word || "",
+      definition: c.definition ?? "",
+      examples: c.examples ?? "",
+      replaces: c.replaces ?? "",
+      mySentence: c.mySentence ?? "",
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+      status: c.status || "NEW",
+      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+      box: clamp((c.box ?? 1), 1, 3),
+      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
+    }));
+  }
+
+  function saveCards(cards) {
+    localStorage.setItem(LS_KEY, JSON.stringify(cards));
+  }
+
+  function computeStatus(card) {
+    if ((card.nailedCount || 0) >= 5) return "FUNCTIONAL";
+    if ((card.timesReviewed || 0) > 0) return "LEARNING";
+    return "NEW";
+  }
+
+  function isDue(card, todayTs = startOfTodayLocalTs()) {
+    const box = clamp(card.box || 1, 1, 3);
+    const intervalMs = daysToMs(BOX_INTERVAL_DAYS[box]);
+    if (!card.lastReviewedTs) return true;
+    const last = new Date(card.lastReviewedTs);
+    last.setHours(0,0,0,0);
+    const dueTs = last.getTime() + intervalMs;
+    return dueTs <= todayTs;
+  }
+
+  function nextDueText(card) {
+    const box = clamp(card.box || 1, 1, 3);
+    const intervalMs = daysToMs(BOX_INTERVAL_DAYS[box]);
+    if (!card.lastReviewedTs) return "Due now";
+    const last = new Date(card.lastReviewedTs);
+    last.setHours(0,0,0,0);
+    const dueTs = last.getTime() + intervalMs;
+    const diff = Math.round((dueTs - startOfTodayLocalTs()) / daysToMs(1));
+    if (diff <= 0) return "Due now";
+    if (diff === 1) return "Due tomorrow";
+    return `Due in ${diff} days`;
+  }
+
+  function sortByWord(cards){
+    return [...cards].sort((a,b) => (a.word||"").localeCompare(b.word||"", undefined, {sensitivity:"base"}));
+  }
+
+  function getStats(cards) {
+    const todayTs = startOfTodayLocalTs();
+    const total = cards.length;
+    const dueToday = cards.filter(c => isDue(c, todayTs)).length;
+    const mastered = cards.filter(c => computeStatus(c) === "FUNCTIONAL").length;
+    return { total, dueToday, mastered };
+  }
+
+  function groupByStatus(cards) {
+    const groups = { NEW: [], LEARNING: [], FUNCTIONAL: [] };
+    for (const c of cards) groups[computeStatus(c)].push(c);
+    for (const k of Object.keys(groups)) groups[k] = sortByWord(groups[k]);
+    return groups;
+  }
+
+  const state = { view: "dashboard", editId: null, reviewId: null };
+
+  function setView(view, params={}) {
+    state.view = view;
+    state.editId = params.editId ?? null;
+    state.reviewId = params.reviewId ?? null;
+    history.replaceState(null, "", hashFor(view, params));
+    render();
+  }
+
+  function hashFor(view, params={}) {
+    const p = new URLSearchParams();
+    if (params.editId) p.set("id", params.editId);
+    if (params.reviewId) p.set("id", params.reviewId);
+    return "#/" + view + (p.toString() ? "?" + p.toString() : "");
+  }
+
+  function parseHash() {
+    const h = location.hash || "#/dashboard";
+    const m = h.match(/^#\/([^?]+)(?:\?(.*))?$/);
+    if (!m) return { view: "dashboard", id: null };
+    const view = m[1] || "dashboard";
+    const qs = new URLSearchParams(m[2] || "");
+    const id = qs.get("id");
+    return { view, id };
+  }
+
+  window.addEventListener("hashchange", () => {
+    const { view, id } = parseHash();
+    if (view === "edit-card") {
+      state.view = "edit-card";
+      state.editId = id;
+    } else if (view === "review") {
+      state.view = "review";
+      state.reviewId = id;
+    } else {
+      state.view = view;
+      state.editId = null;
+      state.reviewId = null;
+    }
+    render();
+  });
+
+  function render() {
+    $$(".tab").forEach(b => b.classList.toggle("active", b.dataset.nav === state.view));
+    const root = $("#viewRoot");
+    root.innerHTML = "";
+    const cards = loadCards();
+
+    if (state.view === "dashboard") root.appendChild(viewDashboard(cards));
+    else if (state.view === "add") root.appendChild(viewAdd(cards));
+    else if (state.view === "edit") root.appendChild(viewEditList(cards));
+    else if (state.view === "edit-card") root.appendChild(viewEditCard(cards, state.editId));
+    else if (state.view === "review") root.appendChild(viewReview(cards, state.reviewId));
+    else root.appendChild(viewDashboard(cards));
+  }
+
+  // --- Views (from your original app) ---
+  // NOTE: This file preserves your UI + review logic; only OpenAI fetch was fixed.
+
+  function viewDashboard(cards) {
+    const { total, dueToday, mastered } = getStats(cards);
+    const groups = groupByStatus(cards);
+
+    const el = document.createElement("div");
+    el.className = "grid";
+
+    const left = document.createElement("div");
+    left.className = "card";
+    left.innerHTML = `
+      <div class="hd"><h2>Dashboard</h2><span class="badge">Offline-first</span></div>
+      <div class="bd">
+        <div class="kpiRow">
+          <div class="kpi"><div class="n">${total}</div><div class="l">Total words</div></div>
+          <div class="kpi"><div class="n">${dueToday}</div><div class="l">Due today</div></div>
+          <div class="kpi"><div class="n">${mastered}</div><div class="l">Mastered (Functional)</div></div>
+        </div>
+        <div class="hr"></div>
+        <div class="btnRow">
+          <button class="btn full" id="goReview">Review what’s due</button>
+          <button class="btn secondary full" id="goAdd">Add words</button>
+        </div>
+        <div class="hr"></div>
+        <div style="font-weight:850">Backup</div>
+        <div class="hint">Export JSON occasionally. LocalStorage can be cleared by the OS/browser.</div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn secondary" id="exportBtn">Export JSON</button>
+          <button class="btn secondary" id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:850">AI (online)</div>
+        <div class="hint">Add your OpenAI API key to generate definition/examples/replaces. Reviews still work offline.</div>
+        <div class="field" style="margin-top:10px">
+          <label>OpenAI API Key</label>
+          <input id="apiKey" type="text" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint">Stored only on this device (localStorage). Don’t reuse a key you care about.</div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveKey">Save key</button>
+          <button class="btn secondary" id="clearKey">Clear</button>
+          <button class="btn secondary" id="testKey">Test</button>
+        </div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn full" id="genNew">Generate for NEW cards</button>
+        </div>
+      </div>
+    `;
+
+    const right = document.createElement("div");
+    right.className = "card";
+    right.innerHTML = `
+      <div class="hd"><h2>Word list</h2><span class="badge">Tap to edit</span></div>
+      <div class="bd">
+        <div class="hint">A word becomes <b>FUNCTIONAL</b> after 5 “Nailed it”.</div>
+        <div class="hr"></div>
+        ${sectionHtml("NEW", groups.NEW)}
+        ${sectionHtml("LEARNING", groups.LEARNING)}
+        ${sectionHtml("FUNCTIONAL", groups.FUNCTIONAL)}
+      </div>
+    `;
+
+    el.appendChild(left);
+    el.appendChild(right);
+
+    $("#goReview", left).onclick = () => setView("review");
+    $("#goAdd", left).onclick = () => setView("add");
+
+    $("#exportBtn", left).onclick = () => exportJson(cards);
+    $("#importBtn", left).onclick = () => $("#importFile", left).click();
+    $("#importFile", left).addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const txt = await f.text();
+      const incoming = safeJsonParse(txt);
+      if (!incoming) return toast("That JSON file looks invalid.");
+      handleImport(incoming);
+      e.target.value = "";
+    });
+
+    // AI settings
+    const apiKeyInput = $("#apiKey", left);
+    if (apiKeyInput) apiKeyInput.value = getOpenAIKey();
+
+    $("#saveKey", left).onclick = () => {
+      setOpenAIKey(apiKeyInput.value);
+      toast(getOpenAIKey() ? "Saved key." : "Key cleared.");
+    };
+    $("#clearKey", left).onclick = () => {
+      setOpenAIKey("");
+      apiKeyInput.value = "";
+      toast("Cleared.");
+    };
+    $("#testKey", left).onclick = async () => {
+      try {
+        await openaiResponses({ input: [{ role: "user", content: "{\"ok\":true}" }] });
+        toast("Key works.");
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Paste your API key first.");
+        else toast("Key test failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#genNew", left).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Paste your API key first.");
+        const all = loadCards();
+        const targets = all.filter(c => computeStatus(c) === "NEW");
+        if (!targets.length) return toast("No NEW cards to generate.");
+
+        let done = 0;
+        for (const c of targets) {
+          toast(`Generating: ${c.word} (${done+1}/${targets.length})`);
+          const fields = await generateCardFields(c.word);
+          c.definition = c.definition || fields.definition;
+          c.examples = c.examples || fields.examples;
+          c.replaces = c.replaces || fields.replaces;
+          done++;
+          saveCards(all);
+        }
+        toast(`Generated ${done} cards.`);
+        render();
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Paste your API key first.");
+        else toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
+    $$(".item[data-id]", right).forEach(node => {
+      node.addEventListener("click", () => setView("edit-card", { editId: node.dataset.id }));
+    });
+
+    return el;
+
+    function sectionHtml(status, list) {
+      const badgeClass = status === "NEW" ? "new" : status === "LEARNING" ? "learning" : "functional";
+      const items = list.slice(0, 10).map(c => `
+        <div class="item" data-id="${esc(c.id)}">
+          <div>
+            <div class="w">${esc(c.word)}</div>
+            <div class="meta">Box ${c.box} · ${esc(nextDueText(c))}</div>
+          </div>
+          <div class="badge ${badgeClass}">${status}</div>
+        </div>
+      `).join("");
+
+      return `
+        <div class="blockTitle">${status} <span class="tiny">(${list.length})</span></div>
+        ${items || `<div class="hint">No words here yet.</div>`}
+        <div class="hr"></div>
+      `;
+    }
+  }
+
+  // The remaining views + import/export + SW init are unchanged from your file.
+  // To avoid accidental truncation, I'm including them verbatim from your upload.
+
+  function viewAdd(cards) {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `
+      <div class="hd"><h2>Add words</h2><span class="badge">Paste list → Build Deck</span></div>
+      <div class="bd">
+        <div class="field">
+          <label>Words (comma or new line separated)</label>
+          <textarea id="wordInput" placeholder="seminal, laconic, obsequious\n..."></textarea>
+          <div class="hint">Duplicates are ignored. Cards are created with empty definition/examples/replaces for you to fill.</div>
+        </div>
+        <div class="btnRow">
+          <button class="btn full" id="buildDeck">Build Deck</button>
+          <button class="btn secondary full" id="toEdit">Go to Edit</button>
+        </div>
+      </div>
+    `;
+
+    $("#toEdit", el).onclick = () => setView("edit");
+    $("#buildDeck", el).onclick = () => {
+      const raw = $("#wordInput", el).value || "";
+      const parts = raw.split(/[\n,]+/g);
+      const words = uniqueWords(parts);
+      if (!words.length) return toast("Paste at least one word.");
+
+      const existing = new Set(cards.map(c => (c.word||"").trim().toLowerCase()));
+      const newOnes = words.filter(w => !existing.has(w.toLowerCase()));
+      if (!newOnes.length) return toast("All of those words already exist.");
+
+      const toAdd = newOnes.map(w => ({
+        id: uid(),
+        word: w,
+        definition: "",
+        examples: "",
+        replaces: "",
+        mySentence: "",
+        mySentenceHistory: [],
+        status: "NEW",
+        timesReviewed: 0,
+        nailedCount: 0,
+        box: 1,
+        lastReviewedTs: null,
+        dateAdded: now()
+      }));
+
+      saveCards([...cards, ...toAdd]);
+      $("#wordInput", el).value = "";
+      toast(`Built ${toAdd.length} cards.`);
+      setView("edit");
+    };
+
+    return el;
+  }
+
+  function viewEditList(cards) {
+    const el = document.createElement("div");
+    el.className = "grid";
+
+    const left = document.createElement("div");
+    left.className = "card";
+    left.innerHTML = `
+      <div class="hd"><h2>Edit cards</h2><span class="badge">${cards.length} words</span></div>
+      <div class="bd">
+        <div class="field">
+          <label>Search</label>
+          <input id="q" type="text" placeholder="Type to filter…" />
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="exportBtn">Export JSON</button>
+          <button class="btn secondary" id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
+        <div class="hr"></div>
+        <div class="hint">Tap a word to edit. Then review.</div>
+      </div>
+    `;
+
+    const right = document.createElement("div");
+    right.className = "card";
+    right.innerHTML = `
+      <div class="hd"><h2>All words</h2><span class="badge">Tap to open</span></div>
+      <div class="bd"><div class="list" id="list"></div></div>
+    `;
+
+    el.appendChild(left);
+    el.appendChild(right);
+
+    const list = $("#list", right);
+    function draw(filter="") {
+      const f = filter.trim().toLowerCase();
+      const sorted = sortByWord(cards);
+      const filtered = f ? sorted.filter(c => (c.word||"").toLowerCase().includes(f)) : sorted;
+
+      list.innerHTML = "";
+      if (!filtered.length) {
+        list.innerHTML = `<div class="hint">No matches.</div>`;
+        return;
+      }
+      for (const c of filtered) {
+        const status = computeStatus(c);
+        const badgeClass = status === "NEW" ? "new" : status === "LEARNING" ? "learning" : "functional";
+        const b = document.createElement("div");
+        b.className = "item";
+        b.dataset.id = c.id;
+        b.innerHTML = `
+          <div>
+            <div class="w">${esc(c.word)}</div>
+            <div class="meta">Box ${c.box} · ${esc(nextDueText(c))} · Reviewed ${c.timesReviewed}×</div>
+          </div>
+          <div class="badge ${badgeClass}">${status}</div>
+        `;
+        b.onclick = () => setView("edit-card", { editId: c.id });
+        list.appendChild(b);
+      }
+    }
+
+    $("#q", left).addEventListener("input", (e) => draw(e.target.value));
+
+    $("#exportBtn", left).onclick = () => exportJson(cards);
+    $("#importBtn", left).onclick = () => $("#importFile", left).click();
+    $("#importFile", left).addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const txt = await f.text();
+      const incoming = safeJsonParse(txt);
+      if (!incoming) return toast("That JSON file looks invalid.");
+      handleImport(incoming);
+      e.target.value = "";
+    });
+
+    draw();
+    return el;
+  }
+
+  function viewEditCard(cards, id) {
+    const card = cards.find(c => c.id === id);
+    const el = document.createElement("div");
+    el.className = "card";
+
+    if (!card) {
+      el.innerHTML = `
+        <div class="hd"><h2>Card not found</h2><span class="badge">¯\\_(ツ)_/¯</span></div>
+        <div class="bd"><button class="btn full" id="back">Back to Edit</button></div>
+      `;
+      $("#back", el).onclick = () => setView("edit");
+      return el;
+    }
+
+    el.innerHTML = `
+      <div class="hd"><h2>Edit</h2><span class="badge">${esc(computeStatus(card))} · Box ${card.box}</span></div>
+      <div class="bd">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <div style="font-size:22px;font-weight:900">${esc(card.word)}</div>
+            <div class="hint">Paste definition/examples/replaces here.</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+            <button class="btn secondary small" id="genAi">Generate (AI)</button>
+            <button class="btn secondary small" id="toReview">Review this</button>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Definition</label>
+          <textarea id="def" placeholder="Conversational definition…"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Example sentences</label>
+          <textarea id="ex" placeholder="3–4 examples…"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Replaces</label>
+          <input id="rep" type="text" placeholder='e.g., "important" / "game-changing"' />
+        </div>
+
+        <div class="btnRow">
+          <button class="btn full" id="save">Save</button>
+          <button class="btn secondary full" id="back">Back</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="dangerZone">
+          <div style="font-weight:850">Delete card</div>
+          <div class="hint">Removes it from localStorage.</div>
+          <button class="btn bad full" id="del">Delete "${escAttr(card.word)}"</button>
+        </div>
+      </div>
+    `;
+
+    $("#def", el).value = card.definition || "";
+    $("#ex", el).value = card.examples || "";
+    $("#rep", el).value = card.replaces || "";
+
+    $("#toReview", el).onclick = () => setView("review", { reviewId: card.id });
+
+    $("#genAi", el).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Add your OpenAI key on Dashboard first.");
+        toast(`Generating: ${card.word}`);
+        const fields = await generateCardFields(card.word);
+        $("#def", el).value = fields.definition;
+        $("#ex", el).value = fields.examples;
+        $("#rep", el).value = fields.replaces;
+        toast("Generated. Hit Save.");
+      } catch (e) {
+        if (String(e.message || e) === "NO_KEY") toast("Add your OpenAI key on Dashboard first.");
+        else toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#save", el).onclick = () => {
+      card.definition = $("#def", el).value || "";
+      card.examples = $("#ex", el).value || "";
+      card.replaces = $("#rep", el).value || "";
+      card.status = computeStatus(card);
+      saveCards(cards);
+      toast("Saved.");
+      setView("edit");
+    };
+
+    $("#back", el).onclick = () => setView("edit");
+
+    $("#del", el).onclick = () => {
+      if (!confirm(`Delete "${card.word}"? This can’t be undone unless you exported JSON.`)) return;
+      saveCards(cards.filter(c => c.id !== card.id));
+      toast("Deleted.");
+      setView("edit");
+    };
+
+    return el;
+  }
+
+  function viewReview(cards, maybeId) {
+    const el = document.createElement("div");
+    el.className = "reviewShell";
+
+    const todayTs = startOfTodayLocalTs();
+    const due = cards.filter(c => isDue(c, todayTs));
+    let card = null;
+
+    if (maybeId) card = cards.find(c => c.id === maybeId) || null;
+    if (!card) {
+      const sorted = [...due].sort((a,b) => {
+        if ((a.box||1) !== (b.box||1)) return (a.box||1) - (b.box||1);
+        return (a.lastReviewedTs||0) - (b.lastReviewedTs||0);
+      });
+      card = sorted[0] || null;
+    }
+
+    const top = document.createElement("div");
+    top.className = "card";
+    top.innerHTML = `
+      <div class="hd"><h2>Review</h2><span class="badge">${due.length} due today</span></div>
+      <div class="bd">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+          <div class="hint">Box 1 daily · Box 2 every 3 days · Box 3 every 7 days.</div>
+          <button class="btn secondary small" id="pickRandom">Pick another</button>
+        </div>
+      </div>
+    `;
+    el.appendChild(top);
+
+    if (!card) {
+      const empty = document.createElement("div");
+      empty.className = "card reviewCard";
+      empty.innerHTML = `
+        <div class="hd"><h2>No cards due</h2><span class="badge">Nice</span></div>
+        <div class="bd">
+          <div style="font-weight:900;font-size:22px">You’re caught up.</div>
+          <div class="hint" style="margin-top:8px">Add more words or edit definitions/examples.</div>
+          <div class="hr"></div>
+          <div class="btnRow">
+            <button class="btn full" id="toAdd">Add words</button>
+            <button class="btn secondary full" id="toEdit">Edit cards</button>
+          </div>
+        </div>
+      `;
+      $("#toAdd", empty).onclick = () => setView("add");
+      $("#toEdit", empty).onclick = () => setView("edit");
+      $("#pickRandom", top).onclick = () => toast("Nothing due to pick.");
+      el.appendChild(empty);
+      return el;
+    }
+
+    const reviewCard = document.createElement("div");
+    reviewCard.className = "card reviewCard";
+    reviewCard.innerHTML = `
+      <div class="hd"><h2>Card</h2><span class="badge">${esc(computeStatus(card))} · Box ${card.box} · ${esc(nextDueText(card))}</span></div>
+      <div class="bd" id="reviewBody"></div>
+    `;
+    el.appendChild(reviewCard);
+
+    function renderFront() {
+      const body = $("#reviewBody", reviewCard);
+      body.innerHTML = `
+        <div class="bigWord">${esc(card.word)}</div>
+
+        <div class="blockTitle">Meaning</div>
+        <div class="para">${esc(card.definition || "(empty — fill this in on Edit)")}</div>
+
+        <div class="blockTitle">Examples</div>
+        <div class="para">${esc(card.examples || "(empty — paste your examples on Edit)")}</div>
+
+        <div class="blockTitle">Replaces</div>
+        <div class="para">${esc(card.replaces || "(empty)")}</div>
+
+        <div class="hr"></div>
+        <button class="btn full" id="flipBtn">NOW USE IT</button>
+        <div class="hint" style="margin-top:10px">Flip → write your sentence → rate it.</div>
+      `;
+      $("#flipBtn", body).onclick = renderBack;
+    }
+
+    function renderBack() {
+      const body = $("#reviewBody", reviewCard);
+      const hist = normalizeSentenceHistory(card.mySentenceHistory);
+      const lastFew = hist.slice().reverse().slice(0, 6);
+
+      body.innerHTML = `
+        <div class="bigWord">${esc(card.word)}</div>
+        <div class="para" style="font-weight:850">YOUR TURN</div>
+        <div class="hint">Use the word in a sentence. It can be dumb. Just be correct.</div>
+
+        <div class="field" style="margin-top:12px">
+          <label>My sentence</label>
+          <textarea id="mysent" placeholder="Type it here…"></textarea>
+          <div class="hint">Rate to move it in spaced repetition. You can also get an AI grade (online).</div>
+        </div>
+
+        <div class="btnRow">
+          <button class="btn secondary full" id="gradeBtn">Grade my sentence (AI)</button>
+        </div>
+
+        <div class="blockTitle">Save & Rate</div>
+        <div class="btnRow">
+          <button class="btn good full" id="good">Nailed it</button>
+          <button class="btn meh full" id="meh">Meh</button>
+          <button class="btn bad full" id="bad">Didn’t know it</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+          <div>
+            <div style="font-weight:850">Previous sentences</div>
+            <div class="hint">${hist.length ? "Most recent first." : "None yet."}</div>
+          </div>
+          <button class="btn secondary small" id="editThis">Edit</button>
+        </div>
+
+        <div class="sentHist" id="hist"></div>
+      `;
+
+      $("#mysent", body).value = card.mySentence || "";
+      $("#editThis", body).onclick = () => setView("edit-card", { editId: card.id });
+
+      const histEl = $("#hist", body);
+      for (const entry of lastFew) {
+        const div = document.createElement("div");
+        div.className = "sent";
+        const grade = (entry.grade === null || entry.grade === undefined || Number.isNaN(entry.grade)) ? "" : `\n\nGrade: ${entry.grade}/10`;
+        const fb = entry.feedback ? `\n${entry.feedback}` : "";
+        div.textContent = `${entry.t}${grade}${fb}`;
+        histEl.appendChild(div);
+      }
+
+      $("#gradeBtn", body).onclick = () => gradeCurrent();
+      $("#good", body).onclick = () => rate("good");
+      $("#meh", body).onclick = () => rate("meh");
+      $("#bad", body).onclick = () => rate("bad");
+    }
+
+    async function gradeCurrent() {
+      const body = $("#reviewBody", reviewCard);
+      const sentence = ($("#mysent", body)?.value || "").trim();
+      if (!sentence) return toast("Type a sentence first.");
+      if (!getOpenAIKey()) return toast("Add your OpenAI key on Dashboard first.");
+
+      card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+      card.mySentence = sentence;
+      card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+      saveCards(cards);
+
+      try {
+        toast("Grading…");
+        const g = await gradeSentenceAI({
+          word: card.word,
+          definition: card.definition,
+          examples: card.examples,
+          sentence
+        });
+
+        const hist = normalizeSentenceHistory(card.mySentenceHistory);
+        const last = hist[hist.length - 1];
+        last.grade = Number.isFinite(g.grade) ? g.grade : null;
+        last.feedback = g.feedback || "";
+        card.mySentenceHistory = hist;
+        saveCards(cards);
+
+        toast(Number.isFinite(g.grade) ? `Grade: ${g.grade}/10` : "Graded.");
+        renderBack();
+      } catch (e) {
+        toast("Grade failed.");
+        console.warn(e);
+      }
+    }
+
+    function rate(kind) {
+      const body = $("#reviewBody", reviewCard);
+      const sentence = ($("#mysent", body)?.value || "").trim();
+
+      if (sentence) {
+        card.mySentence = sentence;
+        card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+        card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+      } else {
+        card.mySentence = "";
+      }
+
+      card.timesReviewed = (card.timesReviewed || 0) + 1;
+      card.lastReviewedTs = now();
+
+      if (kind === "good") {
+        card.box = clamp((card.box || 1) + 1, 1, 3);
+        card.nailedCount = (card.nailedCount || 0) + 1;
+        toast("Nailed it. Moving forward.");
+      } else if (kind === "meh") {
+        toast("Meh. Keeping it here.");
+      } else {
+        card.box = 1;
+        toast("Reset to Box 1.");
+      }
+
+      card.status = computeStatus(card);
+      saveCards(cards);
+      setTimeout(() => setView("review"), 250);
+    }
+
+    $("#pickRandom", top).onclick = () => {
+      const others = due.filter(c => c.id !== card.id);
+      if (!others.length) return toast("This is the only due card.");
+      const pick = others[Math.floor(Math.random() * others.length)];
+      setView("review", { reviewId: pick.id });
+    };
+
+    renderFront();
+    return el;
+  }
+
+  function exportJson(cards) {
+    const payload = { app: APP_NAME, exportedAt: new Date().toISOString(), version: 1, cards };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vocabforge-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("Exported JSON.");
+  }
+
+  function handleImport(incoming) {
+    let payload = incoming;
+    if (Array.isArray(incoming)) payload = { cards: incoming };
+
+    const cards = payload?.cards;
+    if (!Array.isArray(cards)) return toast("Import file must contain a cards array.");
+
+    const normalized = cards.map(c => ({
+      id: c.id || uid(),
+      word: normalizeWord(c.word || ""),
+      definition: c.definition ?? "",
+      examples: c.examples ?? "",
+      replaces: c.replaces ?? "",
+      mySentence: c.mySentence ?? "",
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+      status: c.status || "NEW",
+      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+      box: clamp((c.box ?? 1), 1, 3),
+      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
+    })).filter(c => c.word);
+
+    if (!normalized.length) return toast("No valid cards found to import.");
+
+    const replace = confirm(
+      `Import ${normalized.length} cards.\n\nOK = Replace current data\nCancel = Merge (keep existing, add new words)`
+    );
+
+    if (replace) {
+      saveCards(normalized);
+      toast("Imported (replaced).");
+    } else {
+      const existing = loadCards();
+      const seen = new Set(existing.map(c => (c.word||"").toLowerCase()));
+      const merged = [...existing];
+      let added = 0;
+      for (const c of normalized) {
+        const key = (c.word||"").toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(c);
+        added++;
+      }
+      saveCards(merged);
+      toast(`Imported (merged): +${added} new.`);
+    }
+
+    render();
+  }
+
+  async function initServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      $("#swDot").classList.remove("on");
+      $("#swText").textContent = "Offline cache: not supported";
+      return;
+    }
+
+    try {
+      await navigator.serviceWorker.register('./sw.js');
+      await navigator.serviceWorker.ready;
+      $("#swDot").classList.add("on");
+      $("#swText").textContent = "Offline cache: ready";
+    } catch (e) {
+      $("#swDot").classList.remove("on");
+      $("#swText").textContent = "Offline cache: failed";
+      console.warn('SW registration failed', e);
+    }
+  }
+
+  $$(".tab").forEach(btn => {
+    btn.addEventListener("click", () => setView(btn.dataset.nav));
+  });
+
+  function esc(s) {
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+  function escAttr(s){ return esc(s).replaceAll("\n"," "); }
+
+  function init() {
+    const metaRaw = localStorage.getItem(LS_META);
+    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now() }));
+
+    const { view, id } = parseHash();
+    if (view === "edit-card") { state.view = "edit-card"; state.editId = id; }
+    else if (view === "review") { state.view = "review"; state.reviewId = id; }
+    else { state.view = ["dashboard","add","edit","review"].includes(view) ? view : "dashboard"; }
+
+    initServiceWorker();
+    render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
