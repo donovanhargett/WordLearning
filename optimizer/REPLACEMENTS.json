@@ -1,7 +1,36 @@
-[
-  {
-    "file": "index.html",
-    "find": "<input id=\"apiKey\" type=\"text\" ... />",
-    "replace": "<input id=\"apiKey\" type=\"password\" ... />"
-  }
-]
+{
+  "base": "main",
+  "commitMessage": "security: hide OpenAI key in UI",
+  "replacements": [
+    {
+      "file": "index.html",
+      "find": "<input id=\"apiKey\" type=\"text\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />",
+      "replace": "<input id=\"apiKey\" type=\"password\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />\n          <div class=\"hint\" id=\"keyStatus\"></div>"
+    },
+    {
+      "file": "index.html",
+      "find": "          <button class=\"btn secondary\" id=\"testKey\">Test</button>",
+      "replace": "          <button class=\"btn secondary\" id=\"testKey\">Test</button>\n          <button class=\"btn secondary\" id=\"revealKey\">Reveal</button>"
+    },
+    {
+      "file": "index.html",
+      "find": "    const apiKeyInput = $(\"#apiKey\", left);\n    if (apiKeyInput) apiKeyInput.value = getOpenAIKey();",
+      "replace": "    const apiKeyInput = $(\"#apiKey\", left);\n    const keyStatus = $(\"#keyStatus\", left);\n    const saved = getOpenAIKey();\n    if (apiKeyInput) {\n      apiKeyInput.type = \"password\";\n      apiKeyInput.value = \"\";\n    }\n    if (keyStatus) {\n      keyStatus.textContent = saved ? `Key saved (ends with …${saved.slice(-4)}).` : \"No key saved.\";\n    }"
+    },
+    {
+      "file": "index.html",
+      "find": "    $(\"#saveKey\", left).onclick = () => {\n      setOpenAIKey(apiKeyInput.value);\n      toast(getOpenAIKey() ? \"Saved key.\" : \"Key cleared.\");\n    };",
+      "replace": "    $(\"#saveKey\", left).onclick = () => {\n      setOpenAIKey(apiKeyInput.value);\n      const saved2 = getOpenAIKey();\n      if (keyStatus) keyStatus.textContent = saved2 ? `Key saved (ends with …${saved2.slice(-4)}).` : \"No key saved.\";\n      if (apiKeyInput) {\n        apiKeyInput.type = \"password\";\n        apiKeyInput.value = \"\";\n      }\n      const r = $(\"#revealKey\", left);\n      if (r) r.textContent = \"Reveal\";\n      toast(saved2 ? \"Saved key.\" : \"Key cleared.\");\n    };"
+    },
+    {
+      "file": "index.html",
+      "find": "    $(\"#clearKey\", left).onclick = () => {\n      setOpenAIKey(\"\");\n      apiKeyInput.value = \"\";\n      toast(\"Cleared.\");\n    };",
+      "replace": "    $(\"#clearKey\", left).onclick = () => {\n      setOpenAIKey(\"\");\n      if (keyStatus) keyStatus.textContent = \"No key saved.\";\n      if (apiKeyInput) {\n        apiKeyInput.type = \"password\";\n        apiKeyInput.value = \"\";\n      }\n      const r = $(\"#revealKey\", left);\n      if (r) r.textContent = \"Reveal\";\n      toast(\"Cleared.\");\n    };"
+    },
+    {
+      "file": "index.html",
+      "find": "    $(\"#testKey\", left).onclick = async () => {",
+      "replace": "    let revealed = false;\n    $(\"#revealKey\", left).onclick = () => {\n      const k = getOpenAIKey();\n      if (!k) return toast(\"No key saved.\");\n      revealed = !revealed;\n      apiKeyInput.type = revealed ? \"text\" : \"password\";\n      apiKeyInput.value = revealed ? k : \"\";\n      $(\"#revealKey\", left).textContent = revealed ? \"Hide\" : \"Reveal\";\n    };\n\n    $(\"#testKey\", left).onclick = async () => {"
+    }
+  ]
+}
