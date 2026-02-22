@@ -1,0 +1,50 @@
+name: Auto-merge Optimizer PR on Approval
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  enable-auto-merge:
+    if: >
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.user.login == 'optimizer-bot' ||
+      startsWith(github.event.pull_request.head.ref, 'optimizer/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure reviewer is Donovan
+        if: github.event.review.user.login != 'donovanhargett'
+        run: |
+          echo "Reviewer is not donovanhargett. Skipping."
+          exit 0
+
+      - name: Enable auto-merge (squash)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            // Only act on optimizer branches
+            if (!pr.head.ref.startsWith("optimizer/")) {
+              core.info(`Not an optimizer PR (${pr.head.ref}). Skipping.`);
+              return;
+            }
+
+            // Enable auto-merge via GraphQL
+            const query = `
+              mutation EnableAutoMerge($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: SQUASH
+                }) {
+                  pullRequest { number }
+                }
+              }
+            `;
+
+            await github.graphql(query, { pullRequestId: pr.node_id });
+            core.info(`Auto-merge enabled for PR #${pr.number}`);
