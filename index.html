@@ -291,7 +291,10 @@ font-weight:700;
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        input
+        input,
+        text: { format: { type: "json_object" } }
+      })
+
       })
     });
 
