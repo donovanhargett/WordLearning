@@ -168,11 +168,11 @@
   <div class="toprow">
     <div class="brand">
       <div class="title">VocabForge</div>
-      <div class="sub">Vocabulary + reading list · offline-first</div>
+      <div class="sub">Vocabulary + reading list · offline-first (sync when online)</div>
     </div>
     <div class="brand" style="align-items:flex-end">
       <div class="sub" id="swText">Offline cache: …</div>
-      <div class="sub" id="syncText">Storage: local</div>
+      <div class="sub" id="syncText">Sync: …</div>
     </div>
   </div>
 </header>
@@ -193,16 +193,23 @@
 
 <script>
 (() => {
-  const LS_CARDS = "vocabforge.cards.v2";
-  const LS_META = "vocabforge.meta.v1";
-  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
-  const LS_READING = "vocabforge.reading.v1";
+  // Storage keys
+  const LS_CARDS = "vocabforge.cards.v3";
+  const LS_READING = "vocabforge.reading.v2";
+  const LS_META = "vocabforge.meta.v2";
 
+  // OpenAI
+  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
   const OPENAI_MODEL = "gpt-4o-mini";
+
+  // GitHub Gist Sync
+  const LS_GH_TOKEN = "vocabforge.ghToken.v1";
+  const LS_GIST_ID = "vocabforge.gistId.v1";
+  const DEFAULT_GIST_ID = "5af41e31e118e48021be2da7e46c1d9f";
 
   const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
 
-  // IndexedDB for PDFs
+  // IndexedDB for PDFs (device-local only)
   const DB_NAME = "vocabforge";
   const DB_VER = 1;
   const STORE_PDFS = "pdfs";
@@ -234,6 +241,7 @@
   function daysToMs(days){ return days * 24 * 60 * 60 * 1000; }
   function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
+  // ----- OpenAI -----
   function getOpenAIKey(){
     return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
   }
@@ -310,6 +318,179 @@
     };
   }
 
+  // ----- Sync (GitHub Gist) -----
+  function getGistId(){
+    return (localStorage.getItem(LS_GIST_ID) || DEFAULT_GIST_ID).trim();
+  }
+  function setGistId(id){
+    const v = (id || "").trim();
+    if (!v) localStorage.removeItem(LS_GIST_ID);
+    else localStorage.setItem(LS_GIST_ID, v);
+  }
+  function getGhToken(){
+    return (localStorage.getItem(LS_GH_TOKEN) || "").trim();
+  }
+  function setGhToken(t){
+    const v = (t || "").trim();
+    if (!v) localStorage.removeItem(LS_GH_TOKEN);
+    else localStorage.setItem(LS_GH_TOKEN, v);
+  }
+
+  function syncSetStatus(text){
+    const el = $("#syncText");
+    if (el) el.textContent = `Sync: ${text}`;
+  }
+
+  async function gistFetchData(){
+    const token = getGhToken();
+    const gistId = getGistId();
+    if (!token) throw new Error("NO_GH_TOKEN");
+    if (!gistId) throw new Error("NO_GIST_ID");
+
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": `token ${token}`
+      }
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`GIST_GET_${res.status}:${t.slice(0,200)}`);
+    }
+    const json = await res.json();
+    const file = json?.files?.["vocabforge-data.json"];
+    const content = file?.content;
+    const parsed = safeJsonParse(content || "");
+    if (!parsed) {
+      return { version: 1, updatedAt: 0, cards: [], reading: [] };
+    }
+    return {
+      version: parsed.version || 1,
+      updatedAt: Number(parsed.updatedAt || 0),
+      cards: Array.isArray(parsed.cards) ? parsed.cards : [],
+      reading: Array.isArray(parsed.reading) ? parsed.reading : []
+    };
+  }
+
+  async function gistPutData(payload){
+    const token = getGhToken();
+    const gistId = getGistId();
+    if (!token) throw new Error("NO_GH_TOKEN");
+    if (!gistId) throw new Error("NO_GIST_ID");
+
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      method: "PATCH",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "Authorization": `token ${token}`
+      },
+      body: JSON.stringify({
+        files: {
+          "vocabforge-data.json": {
+            content: JSON.stringify(payload, null, 0)
+          }
+        }
+      })
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`GIST_PATCH_${res.status}:${t.slice(0,200)}`);
+    }
+    return true;
+  }
+
+  function ensureUpdatedAt(item){
+    if (!item || typeof item !== "object") return item;
+    if (!Number.isFinite(item.updatedAt)) item.updatedAt = item.dateAdded || now();
+    return item;
+  }
+
+  function mergeById(localArr, remoteArr){
+    const out = new Map();
+    for (const a of (remoteArr || [])) {
+      if (!a || !a.id) continue;
+      out.set(a.id, ensureUpdatedAt(structuredClone(a)));
+    }
+    for (const a of (localArr || [])) {
+      if (!a || !a.id) continue;
+      const existing = out.get(a.id);
+      const cand = ensureUpdatedAt(structuredClone(a));
+      if (!existing || (cand.updatedAt || 0) >= (existing.updatedAt || 0)) out.set(a.id, cand);
+    }
+    return Array.from(out.values());
+  }
+
+  function getLocalPayload(){
+    return {
+      version: 1,
+      updatedAt: getLocalUpdatedAt(),
+      cards: loadCards(),
+      reading: loadReading()
+    };
+  }
+
+  function getLocalUpdatedAt(){
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    return Number(meta.updatedAt || 0);
+  }
+
+  function bumpLocalUpdatedAt(){
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    meta.updatedAt = now();
+    localStorage.setItem(LS_META, JSON.stringify(meta));
+  }
+
+  async function syncOnce(){
+    if (!navigator.onLine) {
+      syncSetStatus("offline");
+      return;
+    }
+    if (!getGhToken()) {
+      syncSetStatus("no token");
+      return;
+    }
+
+    try {
+      syncSetStatus("syncing…");
+
+      const remote = await gistFetchData();
+      const local = getLocalPayload();
+
+      // Merge by item.updatedAt to avoid clobber
+      const mergedCards = mergeById(local.cards, remote.cards);
+      const mergedReading = mergeById(local.reading, remote.reading);
+
+      // Compute merged updatedAt
+      const mergedUpdatedAt = Math.max(
+        Number(remote.updatedAt || 0),
+        Number(local.updatedAt || 0),
+        ...mergedCards.map(x => Number(x.updatedAt || 0)),
+        ...mergedReading.map(x => Number(x.updatedAt || 0))
+      );
+
+      // Write merged to local
+      saveCards(mergedCards, { silentBump: true });
+      saveReading(mergedReading, { silentBump: true });
+      setLocalUpdatedAt(mergedUpdatedAt);
+
+      // Push merged back to remote (keeps both devices converged)
+      await gistPutData({ version: 1, updatedAt: mergedUpdatedAt, cards: mergedCards, reading: mergedReading });
+
+      syncSetStatus("ok");
+    } catch (e) {
+      console.warn(e);
+      syncSetStatus("error");
+    }
+  }
+
+  function setLocalUpdatedAt(ts){
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    meta.updatedAt = Number(ts || 0);
+    localStorage.setItem(LS_META, JSON.stringify(meta));
+  }
+
+  // ----- Data models -----
   function normalizeSentenceHistory(arr){
     if (!Array.isArray(arr)) return [];
     return arr.map(x => {
@@ -331,22 +512,30 @@
     if (!raw) return [];
     const parsed = safeJsonParse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(c => ({
-      id: c.id || uid(),
-      word: c.word || "",
-      definition: c.definition ?? "",
-      examples: c.examples ?? "",
-      replaces: c.replaces ?? "",
-      mySentence: c.mySentence ?? "",
-      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
-      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
-      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
-      box: clamp((c.box ?? 1), 1, 3),
-      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
-      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
-    }));
+    return parsed.map(c => {
+      const card = {
+        id: c.id || uid(),
+        word: c.word || "",
+        definition: c.definition ?? "",
+        examples: c.examples ?? "",
+        replaces: c.replaces ?? "",
+        mySentence: c.mySentence ?? "",
+        mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+        timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+        nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+        box: clamp((c.box ?? 1), 1, 3),
+        lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+        dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now(),
+        updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : (c.dateAdded || now())
+      };
+      return card;
+    });
   }
-  function saveCards(cards){ localStorage.setItem(LS_CARDS, JSON.stringify(cards)); }
+
+  function saveCards(cards, opts={}){
+    localStorage.setItem(LS_CARDS, JSON.stringify(cards));
+    if (!opts.silentBump) bumpLocalUpdatedAt();
+  }
 
   function computeStatus(card){
     if ((card.nailedCount || 0) >= 5) return "FUNCTIONAL";
@@ -376,7 +565,6 @@
     return out;
   }
 
-  // Reading list
   function loadReading(){
     const raw = localStorage.getItem(LS_READING);
     if (!raw) return [];
@@ -384,19 +572,24 @@
     if (!Array.isArray(parsed)) return [];
     return parsed.map(x => ({
       id: x.id || uid(),
-      type: x.type || "article", // article|book
+      type: x.type || "article",
       title: x.title || "",
       author: x.author || "",
       url: x.url || "",
-      status: x.status || "TO_READ", // TO_READ|READING|DONE
+      status: x.status || "TO_READ",
       notes: x.notes || "",
       pdfId: x.pdfId || null,
-      dateAdded: Number.isFinite(x.dateAdded) ? x.dateAdded : now()
+      dateAdded: Number.isFinite(x.dateAdded) ? x.dateAdded : now(),
+      updatedAt: Number.isFinite(x.updatedAt) ? x.updatedAt : (x.dateAdded || now())
     }));
   }
-  function saveReading(items){ localStorage.setItem(LS_READING, JSON.stringify(items)); }
 
-  // IndexedDB helpers
+  function saveReading(items, opts={}){
+    localStorage.setItem(LS_READING, JSON.stringify(items));
+    if (!opts.silentBump) bumpLocalUpdatedAt();
+  }
+
+  // ----- IndexedDB (PDFs device-local) -----
   function idbOpen(){
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VER);
@@ -438,7 +631,7 @@
     });
   }
 
-  // Router
+  // ----- Router -----
   const state = { view: "home", editId: null, reviewId: null, readingId: null };
 
   function setView(view, params={}){
@@ -475,6 +668,7 @@
 
   $$(".tab").forEach(btn => btn.addEventListener("click", () => setView(btn.dataset.nav)));
 
+  // ----- Views -----
   function getStats(cards){
     const todayTs = startOfTodayLocalTs();
     return {
@@ -493,7 +687,7 @@
     const left = document.createElement("div");
     left.className = "card";
     left.innerHTML = `
-      <div class="hd"><h2>Home</h2><span class="badge">Local-first</span></div>
+      <div class="hd"><h2>Home</h2><span class="badge">Sync + Forge</span></div>
       <div class="bd">
         <div class="kpiRow">
           <div class="kpi"><div class="n">${total}</div><div class="l">Total words</div></div>
@@ -506,7 +700,6 @@
         <div class="field">
           <label>Add words (comma or newline)</label>
           <textarea id="wordInput" placeholder="entropy, laconic\n..."></textarea>
-          <div class="hint">Creates blank cards. Use AI generate on a card (Edit) or batch-generate below.</div>
         </div>
         <div class="btnRow">
           <button class="btn full" id="build">Build Deck</button>
@@ -514,8 +707,28 @@
 
         <div class="hr"></div>
 
+        <div style="font-weight:900">Sync (GitHub Gist)</div>
+        <div class="hint">Keeps phone + computer in sync. Requires internet. Data is stored in your secret Gist.</div>
+        <div class="field" style="margin-top:10px">
+          <label>Gist ID</label>
+          <input id="gistId" type="text" placeholder="gist id" />
+        </div>
+        <div class="field">
+          <label>GitHub Token (Gists: read/write)</label>
+          <input id="ghToken" type="password" placeholder="github token" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint" id="ghStatus"></div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveSync">Save</button>
+          <button class="btn secondary" id="clearSync">Clear</button>
+          <button class="btn secondary" id="revealSync">Reveal</button>
+          <button class="btn secondary" id="syncNow">Sync now</button>
+        </div>
+
+        <div class="hr"></div>
+
         <div style="font-weight:900">AI (online)</div>
-        <div class="hint">Key is stored only on this device (local). It will not be shown unless you Reveal.</div>
+        <div class="hint">Key is stored only on this device. Reveal shows it temporarily.</div>
         <div class="field" style="margin-top:10px">
           <label>OpenAI API Key</label>
           <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
@@ -534,7 +747,7 @@
         <div class="hr"></div>
 
         <div style="font-weight:900">Backup</div>
-        <div class="hint">Export JSON occasionally. PDFs are stored separately in IndexedDB.</div>
+        <div class="hint">Export JSON if you want an extra backup. PDFs are device-local.</div>
         <div class="btnRow" style="margin-top:10px">
           <button class="btn secondary" id="exportBtn">Export JSON</button>
           <button class="btn secondary" id="importBtn">Import JSON</button>
@@ -570,6 +783,7 @@
       const newOnes = words.filter(w => !existing.has(w.toLowerCase()));
       if (!newOnes.length) return toast("All of those words already exist.");
 
+      const t = now();
       const toAdd = newOnes.map(w => ({
         id: uid(),
         word: w,
@@ -582,12 +796,65 @@
         nailedCount: 0,
         box: 1,
         lastReviewedTs: null,
-        dateAdded: now()
+        dateAdded: t,
+        updatedAt: t
       }));
 
-      saveCards([...cards, ...toAdd]);
+      const updated = [...cards, ...toAdd];
+      saveCards(updated);
       $("#wordInput", left).value = "";
       toast(`Built ${toAdd.length} cards.`);
+      render();
+      syncSoon();
+    };
+
+    // Sync UI
+    const gistIdInput = $("#gistId", left);
+    const ghTokenInput = $("#ghToken", left);
+    const ghStatus = $("#ghStatus", left);
+    const revealSyncBtn = $("#revealSync", left);
+
+    gistIdInput.value = getGistId();
+
+    const savedTok = getGhToken();
+    if (ghStatus) ghStatus.textContent = savedTok ? `Token saved (ends with …${savedTok.slice(-4)}).` : "No token saved.";
+
+    let revealedSync = false;
+    revealSyncBtn.onclick = () => {
+      const k = getGhToken();
+      if (!k) return toast("No token saved.");
+      revealedSync = !revealedSync;
+      ghTokenInput.type = revealedSync ? "text" : "password";
+      ghTokenInput.value = revealedSync ? k : "";
+      revealSyncBtn.textContent = revealedSync ? "Hide" : "Reveal";
+    };
+
+    $("#saveSync", left).onclick = () => {
+      setGistId(gistIdInput.value);
+      setGhToken(ghTokenInput.value);
+      const t2 = getGhToken();
+      if (ghStatus) ghStatus.textContent = t2 ? `Token saved (ends with …${t2.slice(-4)}).` : "No token saved.";
+      ghTokenInput.type = "password";
+      ghTokenInput.value = "";
+      revealedSync = false;
+      revealSyncBtn.textContent = "Reveal";
+      toast(t2 ? "Saved sync." : "Cleared token.");
+      syncSoon(true);
+    };
+
+    $("#clearSync", left).onclick = () => {
+      setGhToken("");
+      if (ghStatus) ghStatus.textContent = "No token saved.";
+      ghTokenInput.type = "password";
+      ghTokenInput.value = "";
+      revealedSync = false;
+      revealSyncBtn.textContent = "Reveal";
+      toast("Cleared.");
+      syncSetStatus("no token");
+    };
+
+    $("#syncNow", left).onclick = async () => {
+      await syncOnce();
       render();
     };
 
@@ -653,11 +920,13 @@
           c.definition = c.definition || fields.definition;
           c.examples = c.examples || fields.examples;
           c.replaces = c.replaces || fields.replaces;
+          c.updatedAt = now();
           done++;
           saveCards(all);
         }
         toast(`Generated ${done}.`);
         render();
+        syncSoon();
       } catch (e) {
         toast("Generation failed.");
         console.warn(e);
@@ -783,9 +1052,11 @@
       card.definition = $("#def", el).value || "";
       card.examples = $("#ex", el).value || "";
       card.replaces = $("#rep", el).value || "";
+      card.updatedAt = now();
       saveCards(cards);
       toast("Saved.");
       setView("home");
+      syncSoon();
     };
 
     return el;
@@ -885,6 +1156,7 @@
         card.mySentence = sentence;
         card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
         card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+        card.updatedAt = now();
         saveCards(cards);
 
         try {
@@ -895,9 +1167,11 @@
           last.grade = Number.isFinite(g.grade) ? g.grade : null;
           last.feedback = g.feedback || "";
           card.mySentenceHistory = hist2;
+          card.updatedAt = now();
           saveCards(cards);
           toast(`Grade: ${g.grade}/10`);
           renderBack();
+          syncSoon();
         } catch(e) {
           toast("Grade failed.");
           console.warn(e);
@@ -924,8 +1198,10 @@
           card.box = 1;
         }
 
+        card.updatedAt = now();
         saveCards(cards);
         setTimeout(() => setView("review"), 150);
+        syncSoon();
       };
 
       $("#good", b).onclick = () => { toast("Nailed it."); rate("good"); };
@@ -944,7 +1220,7 @@
     const left = document.createElement("div");
     left.className = "card";
     left.innerHTML = `
-      <div class="hd"><h2>Reading</h2><span class="badge">Offline PDFs</span></div>
+      <div class="hd"><h2>Reading</h2><span class="badge">Sync list</span></div>
       <div class="bd">
         <div class="field">
           <label>Type</label>
@@ -968,7 +1244,7 @@
         <div class="field" id="pdfWrap" style="display:none">
           <label>Attach PDF (book)</label>
           <input id="rpdf" type="file" accept="application/pdf" />
-          <div class="hint">PDF is stored offline on this device (IndexedDB).</div>
+          <div class="hint">PDF is device-local (offline). Your Reading List syncs; PDFs do not sync.</div>
         </div>
         <div class="field">
           <label>Status</label>
@@ -1034,7 +1310,8 @@
       if (t === "article" && !url) return toast("URL required for articles.");
 
       const all = loadReading();
-      const item = { id: uid(), type: t, title, author, url, status, notes, pdfId: null, dateAdded: now() };
+      const tNow = now();
+      const item = { id: uid(), type: t, title, author, url, status, notes, pdfId: null, dateAdded: tNow, updatedAt: tNow };
 
       if (t === "book") {
         const f = $("#rpdf", left).files?.[0];
@@ -1049,6 +1326,7 @@
       saveReading(all);
       toast("Saved.");
       render();
+      syncSoon();
     };
 
     const list = $("#rlist", right);
@@ -1133,8 +1411,10 @@
 
     $("#saveNotes", el).onclick = () => {
       item.notes = $("#notes", el).value || "";
+      item.updatedAt = now();
       saveReading(items);
       toast("Saved.");
+      syncSoon();
     };
 
     $("#del", el).onclick = async () => {
@@ -1144,6 +1424,7 @@
       saveReading(updated);
       toast("Deleted.");
       setView("reading");
+      syncSoon();
     };
 
     $("#open", el).onclick = async () => {
@@ -1160,18 +1441,18 @@
       if (!rec?.blob) return toast("PDF missing from storage.");
       const url = URL.createObjectURL(rec.blob);
       viewer.style.display = "block";
-      // Most browsers provide built-in PDF search UI.
-      frame.src = url;
+      frame.src = url; // browser PDF viewer typically includes search
     };
 
     return el;
   }
 
+  // ----- Backup -----
   function exportJson(cards){
     const payload = {
       app: "VocabForge",
       exportedAt: new Date().toISOString(),
-      version: 2,
+      version: 3,
       cards,
       reading: loadReading()
     };
@@ -1194,6 +1475,7 @@
     const cards = payload?.cards;
     if (!Array.isArray(cards)) return toast("Import missing cards array.");
 
+    const tNow = now();
     const normalized = cards.map(c => ({
       id: c.id || uid(),
       word: normalizeWord(c.word || ""),
@@ -1206,7 +1488,8 @@
       nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
       box: clamp((c.box ?? 1), 1, 3),
       lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
-      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : tNow,
+      updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : tNow
     })).filter(c => c.word);
 
     saveCards(normalized);
@@ -1215,8 +1498,10 @@
 
     toast("Imported.");
     render();
+    syncSoon(true);
   }
 
+  // ----- Service Worker -----
   async function initServiceWorker(){
     if (!("serviceWorker" in navigator)) {
       $("#swText").textContent = "Offline cache: not supported";
@@ -1257,10 +1542,46 @@
     else root.appendChild(viewHome(cards));
   }
 
-  function init(){
-    const metaRaw = localStorage.getItem(LS_META);
-    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now() }));
+  // ----- Auto sync orchestration -----
+  let syncTimer = null;
+  let syncInFlight = false;
 
+  async function syncSoon(immediate=false){
+    if (syncInFlight) return;
+    if (!getGhToken()) return;
+    if (!navigator.onLine) return;
+
+    if (immediate) {
+      syncInFlight = true;
+      await syncOnce().finally(() => { syncInFlight = false; });
+      return;
+    }
+
+    if (syncTimer) return;
+    syncTimer = setTimeout(async () => {
+      syncTimer = null;
+      syncInFlight = true;
+      await syncOnce().finally(() => { syncInFlight = false; });
+    }, 1200);
+  }
+
+  function initSyncLoop(){
+    // Auto sync on open, then every ~60s
+    syncSoon(true);
+    setInterval(() => syncSoon(false), 60000);
+
+    window.addEventListener("online", () => syncSoon(true));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") syncSoon(true);
+    });
+  }
+
+  function init(){
+    // Ensure meta exists
+    const metaRaw = localStorage.getItem(LS_META);
+    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now(), updatedAt: 0 }));
+
+    // Initial routing
     const { view, id } = parseHash();
     if (view === "edit-card") setView("edit-card", { editId: id });
     else if (view === "review") setView("review", { reviewId: id });
@@ -1269,6 +1590,11 @@
 
     initServiceWorker();
     render();
+
+    // Set initial sync status
+    syncSetStatus(getGhToken() ? (navigator.onLine ? "ok" : "offline") : "no token");
+
+    initSyncLoop();
   }
 
   init();
