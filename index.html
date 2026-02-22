@@ -1345,6 +1345,7 @@
           </select>
         </label>
         <button class="btn small" id="sheetUploadToggle">Upload list</button>
+        <button class="btn small secondary" id="sheetClearAll">Clear all</button>
       </div>
       <div class="sheetScroll">
         <table class="sheetTable">
@@ -1445,6 +1446,16 @@
       const open = sheetUploadArea.style.display !== "none";
       sheetUploadArea.style.display = open ? "none" : "block";
       sheetUploadToggle.textContent = open ? "Upload list" : "Hide upload";
+    };
+
+    $("#sheetClearAll", el).onclick = async () => {
+      if (!confirm("Delete all items in the reading list? This cannot be undone.")) return;
+      const all = loadReading();
+      for (const it of all) { if (it.pdfId) await pdfDelete(it.pdfId); }
+      saveReading([]);
+      drawRows();
+      syncSoon();
+      toast("Reading list cleared.");
     };
 
     function addOneRow(){
