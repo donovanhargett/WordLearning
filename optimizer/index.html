@@ -1,0 +1,1278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0c10" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>VocabForge</title>
+
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --panel:#11131a;
+      --panel2:#0f1117;
+      --text:#e7eaf0;
+      --muted:#a7afc0;
+      --faint:#7f8798;
+      --line:#222636;
+      --accent:#7aa2ff;
+      --good:#3ddc97;
+      --meh:#ffcc66;
+      --bad:#ff5c7a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius2: 22px;
+      --tap: 52px;
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:linear-gradient(180deg, #07080b 0%, var(--bg) 35%, #07080b 100%);
+      color:var(--text);
+      font-family:var(--font);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      background:rgba(11,12,16,.86);
+      backdrop-filter: blur(12px);
+      border-bottom:1px solid rgba(34,38,54,.7);
+      padding:16px 16px 12px 16px;
+    }
+    .toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:980px;margin:0 auto;}
+    .brand{display:flex;flex-direction:column;gap:2px;}
+    .brand .title{font-size:18px;font-weight:800;letter-spacing:.2px;}
+    .brand .sub{font-size:12px;color:var(--muted);}
+    main{padding:14px 16px 96px 16px;}
+    .wrap{max-width:980px;margin:0 auto}
+
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;}
+    @media (min-width: 860px){.grid{grid-template-columns:1.2fr .8fr;}}
+
+    .card{
+      background:linear-gradient(180deg, rgba(17,19,26,.92) 0%, rgba(15,17,23,.92) 100%);
+      border:1px solid rgba(34,38,54,.85);
+      border-radius:var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{padding:14px 14px 10px 14px;border-bottom:1px solid rgba(34,38,54,.75);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .card .hd h2{margin:0;font-size:14px;letter-spacing:.2px;color:var(--muted);font-weight:650;text-transform:uppercase;}
+    .card .bd{padding:14px}
+
+    .kpiRow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+    .kpi{background:rgba(11,12,16,.6);border:1px solid rgba(34,38,54,.8);border-radius:14px;padding:12px;min-height:74px;}
+    .kpi .n{font-size:22px;font-weight:900}
+    .kpi .l{font-size:12px;color:var(--muted);margin-top:4px}
+
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap}
+    button, .btn{
+      appearance:none;border:none;
+      background:rgba(122,162,255,.16);
+      color:var(--text);
+      border:1px solid rgba(122,162,255,.35);
+      padding:12px 14px;
+      border-radius:16px;
+      font-weight:750;
+      min-height:var(--tap);
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;
+      user-select:none;
+    }
+    button:active{transform: translateY(1px)}
+    .btn.secondary{background:rgba(17,19,26,.75);border-color:rgba(34,38,54,.9);}
+    .btn.good{background:rgba(61,220,151,.16);border-color:rgba(61,220,151,.35)}
+    .btn.meh{background:rgba(255,204,102,.14);border-color:rgba(255,204,102,.35)}
+    .btn.bad{background:rgba(255,92,122,.14);border-color:rgba(255,92,122,.35)}
+    .btn.full{width:100%}
+    .btn.small{min-height:44px;padding:10px 12px;border-radius:14px;font-weight:650;font-size:13px}
+
+    .field{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+    label{font-size:12px;color:var(--muted);letter-spacing:.2px}
+    input[type="text"], input[type="url"], input[type="password"], textarea, select{
+      width:100%;
+      background:rgba(11,12,16,.65);
+      border:1px solid rgba(34,38,54,.9);
+      color:var(--text);
+      border-radius:16px;
+      padding:12px 12px;
+      font-size:16px;
+      outline:none;
+    }
+    textarea{min-height:120px; resize:vertical; line-height:1.35}
+
+    .hint{font-size:12px;color:var(--faint);line-height:1.3}
+    .hr{height:1px;background:rgba(34,38,54,.85);margin:12px 0}
+
+    .list{display:flex;flex-direction:column;gap:8px;}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 12px;background:rgba(11,12,16,.55);border:1px solid rgba(34,38,54,.85);border-radius:16px;cursor:pointer;min-height:var(--tap);}
+    .item:active{transform: translateY(1px)}
+    .w{font-size:16px;font-weight:900;letter-spacing:.2px}
+    .meta{font-size:12px;color:var(--muted);margin-top:3px;white-space:pre-wrap}
+
+    .badge{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid rgba(34,38,54,.9);background:rgba(17,19,26,.65);color:var(--muted);white-space:nowrap;}
+
+    .tabs{
+      position:fixed;left:0;right:0;bottom:0;z-index:10;
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;
+      background:rgba(11,12,16,.86);
+      backdrop-filter: blur(12px);
+      border-top:1px solid rgba(34,38,54,.7);
+    }
+    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+    .tab{min-height:50px;border-radius:16px;background:rgba(17,19,26,.65);border:1px solid rgba(34,38,54,.85);color:var(--muted);font-weight:800;font-size:13px;}
+    .tab.active{background:rgba(122,162,255,.14);border-color:rgba(122,162,255,.35);color:rgba(225,235,255,.98)}
+
+    .reviewShell{min-height: calc(100vh - 140px); display:flex; flex-direction:column; gap:12px;}
+    .reviewCard{flex:1;border-radius:24px;}
+    .bigWord{font-size:34px;font-weight:950;letter-spacing:.3px;margin:0 0 10px 0;}
+    .blockTitle{font-size:12px;text-transform:uppercase;letter-spacing:.2px;color:var(--muted);margin:14px 0 6px 0;font-weight:800;}
+    .para{white-space:pre-wrap;line-height:1.42;color:rgba(231,234,240,.95);font-size:16px;}
+
+    .toast{
+      position:fixed;left:50%;bottom:80px;transform:translateX(-50%);
+      background:rgba(17,19,26,.92);
+      border:1px solid rgba(34,38,54,.9);
+      border-radius:999px;
+      padding:10px 14px;
+      color:var(--text);
+      box-shadow: var(--shadow);
+      opacity:0;pointer-events:none;
+      transition:opacity .18s ease, transform .18s ease;
+      max-width:min(92vw,760px);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-weight:800;z-index:50;
+    }
+    .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+    .viewer{
+      width:100%;
+      height:70vh;
+      border:1px solid rgba(34,38,54,.85);
+      border-radius:16px;
+      background:rgba(11,12,16,.55);
+      overflow:hidden;
+    }
+    .viewer iframe{width:100%;height:100%;border:0;}
+  </style>
+</head>
+<body>
+<header>
+  <div class="toprow">
+    <div class="brand">
+      <div class="title">VocabForge</div>
+      <div class="sub">Vocabulary + reading list · offline-first</div>
+    </div>
+    <div class="brand" style="align-items:flex-end">
+      <div class="sub" id="swText">Offline cache: …</div>
+      <div class="sub" id="syncText">Storage: local</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" id="viewRoot"></div>
+</main>
+
+<nav class="tabs">
+  <div class="inner">
+    <button class="tab" data-nav="home">Home</button>
+    <button class="tab" data-nav="review">Review</button>
+    <button class="tab" data-nav="reading">Reading</button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const LS_CARDS = "vocabforge.cards.v2";
+  const LS_META = "vocabforge.meta.v1";
+  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
+  const LS_READING = "vocabforge.reading.v1";
+
+  const OPENAI_MODEL = "gpt-4o-mini";
+
+  const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
+
+  // IndexedDB for PDFs
+  const DB_NAME = "vocabforge";
+  const DB_VER = 1;
+  const STORE_PDFS = "pdfs";
+
+  const $ = (sel, el=document) => el.querySelector(sel);
+  const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+  const now = () => Date.now();
+
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.classList.add("on");
+    setTimeout(() => el.classList.remove("on"), 1400);
+  }
+
+  function safeJsonParse(text) {
+    try { return JSON.parse(text); } catch { return null; }
+  }
+
+  function uid() {
+    return "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+  }
+
+  function startOfTodayLocalTs() {
+    const d = new Date();
+    d.setHours(0,0,0,0);
+    return d.getTime();
+  }
+  function daysToMs(days){ return days * 24 * 60 * 60 * 1000; }
+  function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+  function getOpenAIKey(){
+    return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
+  }
+  function setOpenAIKey(key){
+    const k = (key || "").trim();
+    if (!k) localStorage.removeItem(LS_OPENAI_KEY);
+    else localStorage.setItem(LS_OPENAI_KEY, k);
+  }
+
+  async function openaiResponses({ input }){
+    const key = getOpenAIKey();
+    if (!key) throw new Error("NO_KEY");
+
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        input,
+        text: { format: { type: "json_object" } }
+      })
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`OPENAI_${res.status}:${t.slice(0,200)}`);
+    }
+
+    return await res.json();
+  }
+
+  function extractTextFromResponses(json){
+    try {
+      const out = json?.output;
+      if (!Array.isArray(out)) return "";
+      let text = "";
+      for (const item of out) {
+        const content = item?.content;
+        if (!Array.isArray(content)) continue;
+        for (const c of content) if (c?.type === "output_text") text += (c.text || "");
+      }
+      return (text || "").trim();
+    } catch { return ""; }
+  }
+
+  async function generateCardFields(word){
+    const prompt = `You are VocabDeck. Write like a funny friend in a group chat — confident, punchy, a little roast-y, not academic.\n\nWORD: ${word}\n\nReturn STRICT JSON with keys: definition (string), examples (string with 4-6 lines), replaces (string).\n\nSTYLE RULES:\n- BRO TERM energy. Gym convos, sports takes, bar arguments, half-serious politics, dating stories.\n- Examples should feel like responses you'd actually send.\n- Mix ironic casual usage + at most 1 serious usage if needed.\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+    const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+    return {
+      definition: String(parsed.definition || "").trim(),
+      examples: String(parsed.examples || "").trim(),
+      replaces: String(parsed.replaces || "").trim()
+    };
+  }
+
+  async function gradeSentenceAI({ word, definition, examples, sentence }){
+    const prompt = `You are a strict but helpful usage coach. Grade whether the sentence uses the target word correctly and naturally.\n\nWORD: ${word}\n\nMeaning context: ${definition || "(none)"}\n\nExamples context:\n${examples || "(none)"}\n\nUSER SENTENCE:\n${sentence}\n\nReturn STRICT JSON with keys: grade (number 0-10), feedback (string 1-3 sentences), corrected (string optional).\n`;
+
+    const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
+    const text = extractTextFromResponses(json);
+    const parsed = safeJsonParse(text);
+    if (!parsed) throw new Error("BAD_JSON");
+    return {
+      grade: Number(parsed.grade),
+      feedback: String(parsed.feedback || "").trim(),
+      corrected: String(parsed.corrected || "").trim()
+    };
+  }
+
+  function normalizeSentenceHistory(arr){
+    if (!Array.isArray(arr)) return [];
+    return arr.map(x => {
+      if (typeof x === "string") return { t: x, at: null, grade: null, feedback: "" };
+      if (x && typeof x === "object") {
+        return {
+          t: String(x.t ?? x.text ?? "").trim(),
+          at: Number.isFinite(x.at) ? x.at : null,
+          grade: (x.grade === null || x.grade === undefined) ? null : Number(x.grade),
+          feedback: (x.feedback ?? x.fb ?? "") ? String(x.feedback ?? x.fb) : ""
+        };
+      }
+      return { t: "", at: null, grade: null, feedback: "" };
+    }).filter(e => e.t);
+  }
+
+  function loadCards(){
+    const raw = localStorage.getItem(LS_CARDS);
+    if (!raw) return [];
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(c => ({
+      id: c.id || uid(),
+      word: c.word || "",
+      definition: c.definition ?? "",
+      examples: c.examples ?? "",
+      replaces: c.replaces ?? "",
+      mySentence: c.mySentence ?? "",
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+      box: clamp((c.box ?? 1), 1, 3),
+      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
+    }));
+  }
+  function saveCards(cards){ localStorage.setItem(LS_CARDS, JSON.stringify(cards)); }
+
+  function computeStatus(card){
+    if ((card.nailedCount || 0) >= 5) return "FUNCTIONAL";
+    if ((card.timesReviewed || 0) > 0) return "LEARNING";
+    return "NEW";
+  }
+  function isDue(card, todayTs = startOfTodayLocalTs()){
+    const intervalMs = daysToMs(BOX_INTERVAL_DAYS[clamp(card.box || 1, 1, 3)]);
+    if (!card.lastReviewedTs) return true;
+    const last = new Date(card.lastReviewedTs);
+    last.setHours(0,0,0,0);
+    return (last.getTime() + intervalMs) <= todayTs;
+  }
+
+  function normalizeWord(w){ return (w || "").trim().replace(/\s+/g, " "); }
+  function uniqueWords(words){
+    const seen = new Set();
+    const out = [];
+    for (const w of words) {
+      const n = normalizeWord(w);
+      if (!n) continue;
+      const k = n.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(n);
+    }
+    return out;
+  }
+
+  // Reading list
+  function loadReading(){
+    const raw = localStorage.getItem(LS_READING);
+    if (!raw) return [];
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(x => ({
+      id: x.id || uid(),
+      type: x.type || "article", // article|book
+      title: x.title || "",
+      author: x.author || "",
+      url: x.url || "",
+      status: x.status || "TO_READ", // TO_READ|READING|DONE
+      notes: x.notes || "",
+      pdfId: x.pdfId || null,
+      dateAdded: Number.isFinite(x.dateAdded) ? x.dateAdded : now()
+    }));
+  }
+  function saveReading(items){ localStorage.setItem(LS_READING, JSON.stringify(items)); }
+
+  // IndexedDB helpers
+  function idbOpen(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_PDFS)) {
+          db.createObjectStore(STORE_PDFS, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function pdfPut({ id, name, mime, blob }){
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_PDFS, "readwrite");
+      tx.objectStore(STORE_PDFS).put({ id, name, mime, blob, savedAt: now() });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function pdfGet(id){
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_PDFS, "readonly");
+      const req = tx.objectStore(STORE_PDFS).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function pdfDelete(id){
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_PDFS, "readwrite");
+      tx.objectStore(STORE_PDFS).delete(id);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // Router
+  const state = { view: "home", editId: null, reviewId: null, readingId: null };
+
+  function setView(view, params={}){
+    state.view = view;
+    state.editId = params.editId ?? null;
+    state.reviewId = params.reviewId ?? null;
+    state.readingId = params.readingId ?? null;
+    history.replaceState(null, "", hashFor(view, params));
+    render();
+  }
+  function hashFor(view, params={}){
+    const p = new URLSearchParams();
+    if (params.editId) p.set("id", params.editId);
+    if (params.reviewId) p.set("id", params.reviewId);
+    if (params.readingId) p.set("id", params.readingId);
+    return "#/" + view + (p.toString() ? "?" + p.toString() : "");
+  }
+  function parseHash(){
+    const h = location.hash || "#/home";
+    const m = h.match(/^#\/([^?]+)(?:\?(.*))?$/);
+    if (!m) return { view: "home", id: null };
+    const view = m[1] || "home";
+    const qs = new URLSearchParams(m[2] || "");
+    return { view, id: qs.get("id") };
+  }
+
+  window.addEventListener("hashchange", () => {
+    const { view, id } = parseHash();
+    if (view === "edit-card") setView("edit-card", { editId: id });
+    else if (view === "review") setView("review", { reviewId: id });
+    else if (view === "reading-item") setView("reading-item", { readingId: id });
+    else setView(["home","review","reading"].includes(view) ? view : "home");
+  });
+
+  $$(".tab").forEach(btn => btn.addEventListener("click", () => setView(btn.dataset.nav)));
+
+  function getStats(cards){
+    const todayTs = startOfTodayLocalTs();
+    return {
+      total: cards.length,
+      dueToday: cards.filter(c => isDue(c, todayTs)).length,
+      mastered: cards.filter(c => computeStatus(c) === "FUNCTIONAL").length
+    };
+  }
+
+  function viewHome(cards){
+    const { total, dueToday, mastered } = getStats(cards);
+
+    const el = document.createElement("div");
+    el.className = "grid";
+
+    const left = document.createElement("div");
+    left.className = "card";
+    left.innerHTML = `
+      <div class="hd"><h2>Home</h2><span class="badge">Local-first</span></div>
+      <div class="bd">
+        <div class="kpiRow">
+          <div class="kpi"><div class="n">${total}</div><div class="l">Total words</div></div>
+          <div class="kpi"><div class="n">${dueToday}</div><div class="l">Due today</div></div>
+          <div class="kpi"><div class="n">${mastered}</div><div class="l">Functional</div></div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Add words (comma or newline)</label>
+          <textarea id="wordInput" placeholder="entropy, laconic\n..."></textarea>
+          <div class="hint">Creates blank cards. Use AI generate on a card (Edit) or batch-generate below.</div>
+        </div>
+        <div class="btnRow">
+          <button class="btn full" id="build">Build Deck</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:900">AI (online)</div>
+        <div class="hint">Key is stored only on this device (local). It will not be shown unless you Reveal.</div>
+        <div class="field" style="margin-top:10px">
+          <label>OpenAI API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint" id="keyStatus"></div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveKey">Save</button>
+          <button class="btn secondary" id="clearKey">Clear</button>
+          <button class="btn secondary" id="revealKey">Reveal</button>
+          <button class="btn secondary" id="testKey">Test</button>
+        </div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn full" id="genNew">Generate for NEW cards</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:900">Backup</div>
+        <div class="hint">Export JSON occasionally. PDFs are stored separately in IndexedDB.</div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn secondary" id="exportBtn">Export JSON</button>
+          <button class="btn secondary" id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    `;
+
+    const right = document.createElement("div");
+    right.className = "card";
+    right.innerHTML = `
+      <div class="hd"><h2>Words</h2><span class="badge">Tap to edit</span></div>
+      <div class="bd">
+        <div class="field">
+          <label>Search</label>
+          <input id="q" type="text" placeholder="Type to filter…" />
+        </div>
+        <div class="list" id="list"></div>
+      </div>
+    `;
+
+    el.appendChild(left);
+    el.appendChild(right);
+
+    // Add words
+    $("#build", left).onclick = () => {
+      const raw = $("#wordInput", left).value || "";
+      const parts = raw.split(/[\n,]+/g);
+      const words = uniqueWords(parts);
+      if (!words.length) return toast("Paste at least one word.");
+
+      const existing = new Set(cards.map(c => (c.word||"").trim().toLowerCase()));
+      const newOnes = words.filter(w => !existing.has(w.toLowerCase()));
+      if (!newOnes.length) return toast("All of those words already exist.");
+
+      const toAdd = newOnes.map(w => ({
+        id: uid(),
+        word: w,
+        definition: "",
+        examples: "",
+        replaces: "",
+        mySentence: "",
+        mySentenceHistory: [],
+        timesReviewed: 0,
+        nailedCount: 0,
+        box: 1,
+        lastReviewedTs: null,
+        dateAdded: now()
+      }));
+
+      saveCards([...cards, ...toAdd]);
+      $("#wordInput", left).value = "";
+      toast(`Built ${toAdd.length} cards.`);
+      render();
+    };
+
+    // Key UI
+    const apiKeyInput = $("#apiKey", left);
+    const keyStatus = $("#keyStatus", left);
+    const saved = getOpenAIKey();
+    if (keyStatus) keyStatus.textContent = saved ? `Key saved (ends with …${saved.slice(-4)}).` : "No key saved.";
+
+    let revealed = false;
+    $("#revealKey", left).onclick = () => {
+      const k = getOpenAIKey();
+      if (!k) return toast("No key saved.");
+      revealed = !revealed;
+      apiKeyInput.type = revealed ? "text" : "password";
+      apiKeyInput.value = revealed ? k : "";
+      $("#revealKey", left).textContent = revealed ? "Hide" : "Reveal";
+    };
+
+    $("#saveKey", left).onclick = () => {
+      setOpenAIKey(apiKeyInput.value);
+      const saved2 = getOpenAIKey();
+      if (keyStatus) keyStatus.textContent = saved2 ? `Key saved (ends with …${saved2.slice(-4)}).` : "No key saved.";
+      apiKeyInput.type = "password";
+      apiKeyInput.value = "";
+      revealed = false;
+      $("#revealKey", left).textContent = "Reveal";
+      toast(saved2 ? "Saved key." : "Key cleared.");
+    };
+
+    $("#clearKey", left).onclick = () => {
+      setOpenAIKey("");
+      if (keyStatus) keyStatus.textContent = "No key saved.";
+      apiKeyInput.type = "password";
+      apiKeyInput.value = "";
+      revealed = false;
+      $("#revealKey", left).textContent = "Reveal";
+      toast("Cleared.");
+    };
+
+    $("#testKey", left).onclick = async () => {
+      try {
+        await openaiResponses({ input: [{ role: "user", content: "{\"ok\":true}" }] });
+        toast("Key works.");
+      } catch (e) {
+        if (String(e.message||e) === "NO_KEY") toast("Paste your API key first.");
+        else toast("Key test failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#genNew", left).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Paste your API key first.");
+        const all = loadCards();
+        const targets = all.filter(c => computeStatus(c) === "NEW");
+        if (!targets.length) return toast("No NEW cards.");
+
+        let done = 0;
+        for (const c of targets) {
+          toast(`Generating: ${c.word} (${done+1}/${targets.length})`);
+          const fields = await generateCardFields(c.word);
+          c.definition = c.definition || fields.definition;
+          c.examples = c.examples || fields.examples;
+          c.replaces = c.replaces || fields.replaces;
+          done++;
+          saveCards(all);
+        }
+        toast(`Generated ${done}.`);
+        render();
+      } catch (e) {
+        toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
+    // Backup import/export
+    $("#exportBtn", left).onclick = () => exportJson(cards);
+    $("#importBtn", left).onclick = () => $("#importFile", left).click();
+    $("#importFile", left).addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const txt = await f.text();
+      const incoming = safeJsonParse(txt);
+      if (!incoming) return toast("Invalid JSON.");
+      handleImport(incoming);
+      e.target.value = "";
+    });
+
+    // Word list
+    const list = $("#list", right);
+    const q = $("#q", right);
+    const draw = () => {
+      const f = (q.value || "").trim().toLowerCase();
+      const sorted = [...cards].sort((a,b) => (a.word||"").localeCompare(b.word||"", undefined, {sensitivity:"base"}));
+      const filtered = f ? sorted.filter(c => (c.word||"").toLowerCase().includes(f)) : sorted;
+      list.innerHTML = "";
+      if (!filtered.length) {
+        list.innerHTML = `<div class="hint">No matches.</div>`;
+        return;
+      }
+      for (const c of filtered) {
+        const status = computeStatus(c);
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <div>
+            <div class="w">${esc(c.word)}</div>
+            <div class="meta">${status} · Box ${c.box} · Reviewed ${c.timesReviewed}×</div>
+          </div>
+          <div class="badge">Edit</div>
+        `;
+        div.onclick = () => setView("edit-card", { editId: c.id });
+        list.appendChild(div);
+      }
+    };
+    q.addEventListener("input", draw);
+    draw();
+
+    return el;
+  }
+
+  function viewEditCard(cards, id){
+    const card = cards.find(c => c.id === id);
+    const el = document.createElement("div");
+    el.className = "card";
+
+    if (!card) {
+      el.innerHTML = `<div class="hd"><h2>Not found</h2><span class="badge">¯\\_(ツ)_/¯</span></div><div class="bd"><button class="btn full" id="back">Back</button></div>`;
+      $("#back", el).onclick = () => setView("home");
+      return el;
+    }
+
+    el.innerHTML = `
+      <div class="hd"><h2>Edit</h2><span class="badge">${computeStatus(card)} · Box ${card.box}</span></div>
+      <div class="bd">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <div style="font-size:22px;font-weight:950">${esc(card.word)}</div>
+            <div class="hint">Generate with AI, then tweak.</div>
+          </div>
+          <div class="btnRow">
+            <button class="btn secondary small" id="genAi">Generate (AI)</button>
+            <button class="btn secondary small" id="toReview">Review</button>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Definition</label>
+          <textarea id="def"></textarea>
+        </div>
+        <div class="field">
+          <label>Examples</label>
+          <textarea id="ex"></textarea>
+        </div>
+        <div class="field">
+          <label>Replaces</label>
+          <input id="rep" type="text" />
+        </div>
+
+        <div class="btnRow">
+          <button class="btn full" id="save">Save</button>
+          <button class="btn secondary full" id="back">Back</button>
+        </div>
+      </div>
+    `;
+
+    $("#def", el).value = card.definition || "";
+    $("#ex", el).value = card.examples || "";
+    $("#rep", el).value = card.replaces || "";
+
+    $("#back", el).onclick = () => setView("home");
+    $("#toReview", el).onclick = () => setView("review", { reviewId: card.id });
+
+    $("#genAi", el).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Add API key on Home first.");
+        toast(`Generating: ${card.word}`);
+        const fields = await generateCardFields(card.word);
+        $("#def", el).value = fields.definition;
+        $("#ex", el).value = fields.examples;
+        $("#rep", el).value = fields.replaces;
+        toast("Generated. Hit Save.");
+      } catch (e) {
+        toast("Generation failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#save", el).onclick = () => {
+      card.definition = $("#def", el).value || "";
+      card.examples = $("#ex", el).value || "";
+      card.replaces = $("#rep", el).value || "";
+      saveCards(cards);
+      toast("Saved.");
+      setView("home");
+    };
+
+    return el;
+  }
+
+  function viewReview(cards, maybeId){
+    const el = document.createElement("div");
+    el.className = "reviewShell";
+
+    const todayTs = startOfTodayLocalTs();
+    const due = cards.filter(c => isDue(c, todayTs));
+
+    let card = null;
+    if (maybeId) card = cards.find(c => c.id === maybeId) || null;
+    if (!card) {
+      const sorted = [...due].sort((a,b) => (a.box||1) - (b.box||1));
+      card = sorted[0] || null;
+    }
+
+    const top = document.createElement("div");
+    top.className = "card";
+    top.innerHTML = `<div class="hd"><h2>Review</h2><span class="badge">${due.length} due</span></div><div class="bd"><div class="hint">Write a sentence. Rate it. (AI grade optional)</div></div>`;
+    el.appendChild(top);
+
+    if (!card) {
+      const empty = document.createElement("div");
+      empty.className = "card reviewCard";
+      empty.innerHTML = `<div class="hd"><h2>All caught up</h2><span class="badge">Nice</span></div><div class="bd"><button class="btn full" id="home">Back to Home</button></div>`;
+      $("#home", empty).onclick = () => setView("home");
+      el.appendChild(empty);
+      return el;
+    }
+
+    const reviewCard = document.createElement("div");
+    reviewCard.className = "card reviewCard";
+    reviewCard.innerHTML = `<div class="hd"><h2>Card</h2><span class="badge">${computeStatus(card)} · Box ${card.box}</span></div><div class="bd" id="rb"></div>`;
+    el.appendChild(reviewCard);
+
+    function renderFront(){
+      const b = $("#rb", reviewCard);
+      b.innerHTML = `
+        <div class="bigWord">${esc(card.word)}</div>
+        <div class="blockTitle">Meaning</div>
+        <div class="para">${esc(card.definition || "(empty)")}</div>
+        <div class="blockTitle">Examples</div>
+        <div class="para">${esc(card.examples || "(empty)")}</div>
+        <div class="blockTitle">Replaces</div>
+        <div class="para">${esc(card.replaces || "(empty)")}</div>
+        <div class="hr"></div>
+        <button class="btn full" id="flip">NOW USE IT</button>
+      `;
+      $("#flip", b).onclick = renderBack;
+    }
+
+    function renderBack(){
+      const b = $("#rb", reviewCard);
+      const hist = normalizeSentenceHistory(card.mySentenceHistory);
+      const lastFew = hist.slice().reverse().slice(0, 6);
+
+      b.innerHTML = `
+        <div class="bigWord">${esc(card.word)}</div>
+        <div class="hint">Type your sentence. Rate it. AI grade uses internet.</div>
+        <div class="field" style="margin-top:12px">
+          <label>My sentence</label>
+          <textarea id="mysent"></textarea>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary full" id="grade">Grade (AI)</button>
+        </div>
+        <div class="btnRow">
+          <button class="btn good full" id="good">Nailed it</button>
+          <button class="btn meh full" id="meh">Meh</button>
+          <button class="btn bad full" id="bad">Didn’t know it</button>
+        </div>
+        <div class="hr"></div>
+        <div class="blockTitle">Previous</div>
+        <div class="list" id="hist"></div>
+      `;
+
+      $("#mysent", b).value = card.mySentence || "";
+
+      const histEl = $("#hist", b);
+      for (const e of lastFew) {
+        const div = document.createElement("div");
+        div.className = "item";
+        const grade = (e.grade === null || e.grade === undefined || Number.isNaN(e.grade)) ? "" : ` · ${e.grade}/10`;
+        const fb = e.feedback ? `\n${e.feedback}` : "";
+        div.innerHTML = `<div><div class="w">${esc(e.t)}</div><div class="meta">${new Date(e.at || now()).toLocaleString()}${grade}${esc(fb)}</div></div><div class="badge">Saved</div>`;
+        histEl.appendChild(div);
+      }
+
+      $("#grade", b).onclick = async () => {
+        const sentence = ($("#mysent", b).value || "").trim();
+        if (!sentence) return toast("Type a sentence first.");
+        if (!getOpenAIKey()) return toast("Add API key on Home.");
+
+        card.mySentence = sentence;
+        card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+        card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+        saveCards(cards);
+
+        try {
+          toast("Grading…");
+          const g = await gradeSentenceAI({ word: card.word, definition: card.definition, examples: card.examples, sentence });
+          const hist2 = normalizeSentenceHistory(card.mySentenceHistory);
+          const last = hist2[hist2.length - 1];
+          last.grade = Number.isFinite(g.grade) ? g.grade : null;
+          last.feedback = g.feedback || "";
+          card.mySentenceHistory = hist2;
+          saveCards(cards);
+          toast(`Grade: ${g.grade}/10`);
+          renderBack();
+        } catch(e) {
+          toast("Grade failed.");
+          console.warn(e);
+        }
+      };
+
+      const rate = (kind) => {
+        const sentence = ($("#mysent", b).value || "").trim();
+        if (sentence) {
+          card.mySentence = sentence;
+          card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
+          card.mySentenceHistory.push({ t: sentence, at: now(), grade: null, feedback: "" });
+        } else {
+          card.mySentence = "";
+        }
+
+        card.timesReviewed = (card.timesReviewed || 0) + 1;
+        card.lastReviewedTs = now();
+
+        if (kind === "good") {
+          card.box = clamp((card.box || 1) + 1, 1, 3);
+          card.nailedCount = (card.nailedCount || 0) + 1;
+        } else if (kind === "bad") {
+          card.box = 1;
+        }
+
+        saveCards(cards);
+        setTimeout(() => setView("review"), 150);
+      };
+
+      $("#good", b).onclick = () => { toast("Nailed it."); rate("good"); };
+      $("#meh", b).onclick = () => { toast("Meh."); rate("meh"); };
+      $("#bad", b).onclick = () => { toast("Reset."); rate("bad"); };
+    }
+
+    renderFront();
+    return el;
+  }
+
+  function viewReading(items){
+    const el = document.createElement("div");
+    el.className = "grid";
+
+    const left = document.createElement("div");
+    left.className = "card";
+    left.innerHTML = `
+      <div class="hd"><h2>Reading</h2><span class="badge">Offline PDFs</span></div>
+      <div class="bd">
+        <div class="field">
+          <label>Type</label>
+          <select id="rtype">
+            <option value="article">Article</option>
+            <option value="book">Book</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Title</label>
+          <input id="rtitle" type="text" placeholder="Title" />
+        </div>
+        <div class="field" id="authorWrap">
+          <label>Author (book)</label>
+          <input id="rauthor" type="text" placeholder="Author" />
+        </div>
+        <div class="field" id="urlWrap">
+          <label>URL (article)</label>
+          <input id="rurl" type="url" placeholder="https://..." />
+        </div>
+        <div class="field" id="pdfWrap" style="display:none">
+          <label>Attach PDF (book)</label>
+          <input id="rpdf" type="file" accept="application/pdf" />
+          <div class="hint">PDF is stored offline on this device (IndexedDB).</div>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="rstatus">
+            <option value="TO_READ">To Read</option>
+            <option value="READING">Reading</option>
+            <option value="DONE">Done</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="rnotes" placeholder="Quick notes, quotes to save, etc."></textarea>
+        </div>
+        <div class="btnRow">
+          <button class="btn full" id="addReading">Add</button>
+        </div>
+      </div>
+    `;
+
+    const right = document.createElement("div");
+    right.className = "card";
+    right.innerHTML = `
+      <div class="hd"><h2>List</h2><span class="badge">Tap to open</span></div>
+      <div class="bd">
+        <div class="field">
+          <label>Filter</label>
+          <select id="filter">
+            <option value="ALL">All</option>
+            <option value="article">Articles</option>
+            <option value="book">Books</option>
+          </select>
+        </div>
+        <div class="list" id="rlist"></div>
+      </div>
+    `;
+
+    el.appendChild(left);
+    el.appendChild(right);
+
+    const rtype = $("#rtype", left);
+    const authorWrap = $("#authorWrap", left);
+    const urlWrap = $("#urlWrap", left);
+    const pdfWrap = $("#pdfWrap", left);
+
+    function syncType(){
+      const t = rtype.value;
+      authorWrap.style.display = t === "book" ? "flex" : "none";
+      urlWrap.style.display = t === "article" ? "flex" : "none";
+      pdfWrap.style.display = t === "book" ? "flex" : "none";
+    }
+    rtype.onchange = syncType;
+    syncType();
+
+    $("#addReading", left).onclick = async () => {
+      const t = rtype.value;
+      const title = $("#rtitle", left).value.trim();
+      const author = $("#rauthor", left).value.trim();
+      const url = $("#rurl", left).value.trim();
+      const status = $("#rstatus", left).value;
+      const notes = $("#rnotes", left).value || "";
+
+      if (!title) return toast("Title required.");
+      if (t === "article" && !url) return toast("URL required for articles.");
+
+      const all = loadReading();
+      const item = { id: uid(), type: t, title, author, url, status, notes, pdfId: null, dateAdded: now() };
+
+      if (t === "book") {
+        const f = $("#rpdf", left).files?.[0];
+        if (f) {
+          const pdfId = uid();
+          await pdfPut({ id: pdfId, name: f.name || `${title}.pdf`, mime: f.type || "application/pdf", blob: f });
+          item.pdfId = pdfId;
+        }
+      }
+
+      all.unshift(item);
+      saveReading(all);
+      toast("Saved.");
+      render();
+    };
+
+    const list = $("#rlist", right);
+    const filter = $("#filter", right);
+    const draw = () => {
+      const all = loadReading();
+      const f = filter.value;
+      const show = (f === "ALL") ? all : all.filter(x => x.type === f);
+      list.innerHTML = "";
+      if (!show.length) {
+        list.innerHTML = `<div class="hint">No items yet.</div>`;
+        return;
+      }
+      for (const it of show) {
+        const div = document.createElement("div");
+        div.className = "item";
+        const sub = it.type === "article" ? it.url : (it.author ? `by ${it.author}` : "Book");
+        const pdfTag = it.pdfId ? " · PDF" : "";
+        div.innerHTML = `
+          <div>
+            <div class="w">${esc(it.title)}</div>
+            <div class="meta">${esc(it.status)} · ${esc(sub)}${pdfTag}</div>
+          </div>
+          <div class="badge">Open</div>
+        `;
+        div.onclick = () => setView("reading-item", { readingId: it.id });
+        list.appendChild(div);
+      }
+    };
+    filter.onchange = draw;
+    draw();
+
+    return el;
+  }
+
+  function viewReadingItem(items, id){
+    const item = items.find(x => x.id === id);
+    const el = document.createElement("div");
+    el.className = "card";
+
+    if (!item) {
+      el.innerHTML = `<div class="hd"><h2>Not found</h2><span class="badge">¯\\_(ツ)_/¯</span></div><div class="bd"><button class="btn full" id="back">Back</button></div>`;
+      $("#back", el).onclick = () => setView("reading");
+      return el;
+    }
+
+    el.innerHTML = `
+      <div class="hd"><h2>${esc(item.type === "article" ? "Article" : "Book")}</h2><span class="badge">${esc(item.status)}</span></div>
+      <div class="bd">
+        <div style="font-size:22px;font-weight:950">${esc(item.title)}</div>
+        <div class="hint">${item.type === "article" ? esc(item.url) : esc(item.author || "")}</div>
+
+        <div class="hr"></div>
+
+        <div class="btnRow">
+          <button class="btn secondary" id="back">Back</button>
+          <button class="btn secondary" id="open">Open</button>
+          <button class="btn secondary" id="del">Delete</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="notes"></textarea>
+        </div>
+        <div class="btnRow">
+          <button class="btn full" id="saveNotes">Save notes</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="viewer" id="viewer" style="display:none">
+          <iframe id="frame" title="reader"></iframe>
+        </div>
+      </div>
+    `;
+
+    $("#notes", el).value = item.notes || "";
+
+    $("#back", el).onclick = () => setView("reading");
+
+    $("#saveNotes", el).onclick = () => {
+      item.notes = $("#notes", el).value || "";
+      saveReading(items);
+      toast("Saved.");
+    };
+
+    $("#del", el).onclick = async () => {
+      if (!confirm("Delete this reading item?")) return;
+      if (item.pdfId) await pdfDelete(item.pdfId);
+      const updated = items.filter(x => x.id !== item.id);
+      saveReading(updated);
+      toast("Deleted.");
+      setView("reading");
+    };
+
+    $("#open", el).onclick = async () => {
+      const viewer = $("#viewer", el);
+      const frame = $("#frame", el);
+
+      if (item.type === "article") {
+        window.open(item.url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      if (!item.pdfId) return toast("No PDF attached.");
+      const rec = await pdfGet(item.pdfId);
+      if (!rec?.blob) return toast("PDF missing from storage.");
+      const url = URL.createObjectURL(rec.blob);
+      viewer.style.display = "block";
+      // Most browsers provide built-in PDF search UI.
+      frame.src = url;
+    };
+
+    return el;
+  }
+
+  function exportJson(cards){
+    const payload = {
+      app: "VocabForge",
+      exportedAt: new Date().toISOString(),
+      version: 2,
+      cards,
+      reading: loadReading()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vocabforge-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("Exported JSON.");
+  }
+
+  function handleImport(incoming){
+    let payload = incoming;
+    if (Array.isArray(incoming)) payload = { cards: incoming };
+
+    const cards = payload?.cards;
+    if (!Array.isArray(cards)) return toast("Import missing cards array.");
+
+    const normalized = cards.map(c => ({
+      id: c.id || uid(),
+      word: normalizeWord(c.word || ""),
+      definition: c.definition ?? "",
+      examples: c.examples ?? "",
+      replaces: c.replaces ?? "",
+      mySentence: c.mySentence ?? "",
+      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+      box: clamp((c.box ?? 1), 1, 3),
+      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now()
+    })).filter(c => c.word);
+
+    saveCards(normalized);
+
+    if (Array.isArray(payload.reading)) saveReading(payload.reading);
+
+    toast("Imported.");
+    render();
+  }
+
+  async function initServiceWorker(){
+    if (!("serviceWorker" in navigator)) {
+      $("#swText").textContent = "Offline cache: not supported";
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("./sw.js");
+      await navigator.serviceWorker.ready;
+      $("#swText").textContent = "Offline cache: ready";
+    } catch(e) {
+      $("#swText").textContent = "Offline cache: failed";
+      console.warn(e);
+    }
+  }
+
+  function esc(s){
+    return String(s ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function render(){
+    $$(".tab").forEach(b => b.classList.toggle("active", b.dataset.nav === state.view));
+    const root = $("#viewRoot");
+    root.innerHTML = "";
+
+    const cards = loadCards();
+    const reading = loadReading();
+
+    if (state.view === "home") root.appendChild(viewHome(cards));
+    else if (state.view === "edit-card") root.appendChild(viewEditCard(cards, state.editId));
+    else if (state.view === "review") root.appendChild(viewReview(cards, state.reviewId));
+    else if (state.view === "reading") root.appendChild(viewReading(reading));
+    else if (state.view === "reading-item") root.appendChild(viewReadingItem(reading, state.readingId));
+    else root.appendChild(viewHome(cards));
+  }
+
+  function init(){
+    const metaRaw = localStorage.getItem(LS_META);
+    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now() }));
+
+    const { view, id } = parseHash();
+    if (view === "edit-card") setView("edit-card", { editId: id });
+    else if (view === "review") setView("review", { reviewId: id });
+    else if (view === "reading-item") setView("reading-item", { readingId: id });
+    else setView(["home","review","reading"].includes(view) ? view : "home");
+
+    initServiceWorker();
+    render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
