@@ -878,8 +878,8 @@
     el.appendChild(left);
     el.appendChild(right);
 
-    // Add words
-    $("#build", left).onclick = () => {
+    // Add words (same flow as "Generate for NEW cards" — build deck then AI-generate for new cards)
+    $("#build", left).onclick = async () => {
       const raw = $("#wordInput", left).value || "";
       const parts = raw.split(/[\n,]+/g);
       const words = uniqueWords(parts);
@@ -888,6 +888,8 @@
       const existing = new Set(cards.map(c => (c.word||"").trim().toLowerCase()));
       const newOnes = words.filter(w => !existing.has(w.toLowerCase()));
       if (!newOnes.length) return toast("All of those words already exist.");
+
+      if (!getOpenAIKey()) return toast("Paste your API key first.");
 
       const t = now();
       const toAdd = newOnes.map(w => ({
@@ -906,12 +908,34 @@
         updatedAt: t
       }));
 
-      const updated = [...cards, ...toAdd];
+      let updated = [...cards, ...toAdd];
       saveCards(updated);
       $("#wordInput", left).value = "";
-      toast(`Built ${toAdd.length} cards.`);
+      toast(`Built ${toAdd.length} cards. Generating content…`);
       render();
       syncSoon();
+
+      try {
+        let done = 0;
+        for (const c of toAdd) {
+          toast(`Generating: ${c.word} (${done + 1}/${toAdd.length})`);
+          const fields = await generateCardFields(c.word);
+          c.definition = c.definition || fields.definition;
+          c.examples = c.examples || fields.examples;
+          c.replaces = c.replaces || fields.replaces;
+          c.updatedAt = now();
+          done++;
+          saveCards(updated);
+        }
+        toast(`Built and generated ${done} cards.`);
+        render();
+        syncSoon();
+      } catch (e) {
+        toast("Generation failed for some cards.");
+        console.warn(e);
+        render();
+        syncSoon();
+      }
     };
 
     // Sync UI
