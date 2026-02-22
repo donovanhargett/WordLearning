@@ -3,9 +3,11 @@
   "commitMessage": "security: hide OpenAI key in UI",
   "replacements": [
     {
-      "file": "index.html",
-      "find": "<input id=\"apiKey\" type=\"text\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />",
-      "replace": "<input id=\"apiKey\" type=\"password\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />\n          <div class=\"hint\" id=\"keyStatus\"></div>"
+        {
+          "file": "index.html",
+          "find": "<input id=\"apiKey\" type=\"password\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />",
+          "replace": "<input id=\"apiKey\" type=\"password\" placeholder=\"sk-...\" autocomplete=\"off\" autocapitalize=\"off\" spellcheck=\"false\" />\n          <div class=\"hint\" id=\"keyStatus\"></div>"
+        }
     },
     {
       "file": "index.html",
