@@ -450,7 +450,8 @@
     const res = await fetch(`https://api.github.com/gists/${gistId}`, {
       headers: {
         "Accept": "application/vnd.github+json",
-        "Authorization": `token ${token}`
+        "Authorization": `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28"
       }
     });
     if (!res.ok) {
@@ -483,7 +484,8 @@
       headers: {
         "Accept": "application/vnd.github+json",
         "Content-Type": "application/json",
-        "Authorization": `token ${token}`
+        "Authorization": `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28"
       },
       body: JSON.stringify({
         files: {
@@ -584,7 +586,15 @@
       if (msg.includes("NO_GH_TOKEN") || msg.includes("NO_GIST_ID")) syncSetStatus("no token");
       else if (msg.includes("401")) syncSetStatus("error: bad token");
       else if (msg.includes("404")) syncSetStatus("error: gist not found");
-      else if (msg.includes("403")) syncSetStatus("error: token needs gist scope");
+      else if (msg.includes("403")) {
+        let detail = "";
+        try {
+          const body = msg.indexOf(":") >= 0 ? msg.slice(msg.indexOf(":") + 1).trim() : "";
+          const j = body.startsWith("{") ? safeJsonParse(body) : null;
+          if (j && j.message) detail = ": " + String(j.message).slice(0, 120);
+        } catch (_) {}
+        syncSetStatus("error: 403" + detail + " — use a Classic token with gist scope at github.com/settings/tokens");
+      }
       else if (msg.includes("fetch") || msg.includes("Network")) syncSetStatus("error: network");
       else syncSetStatus("error");
     }
@@ -820,9 +830,10 @@
           <input id="gistId" type="text" placeholder="gist id" />
         </div>
         <div class="field">
-          <label>GitHub Token (Gists: read/write)</label>
+          <label>GitHub Token (must have <strong>gist</strong> scope)</label>
           <input id="ghToken" type="password" placeholder="github token" autocomplete="off" autocapitalize="off" spellcheck="false" />
           <div class="hint" id="ghStatus"></div>
+          <div class="hint">Use a <strong>Classic</strong> token (not Fine-grained). Create at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a> → Generate new token (classic) → check <strong>gist</strong>.</div>
         </div>
         <div class="btnRow">
           <button class="btn secondary" id="saveSync">Save</button>
