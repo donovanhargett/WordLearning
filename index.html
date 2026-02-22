@@ -249,7 +249,7 @@
     .sheetTable .statusDot.DONE{ background:var(--good); }
     .sheetTable .actBtn{ padding:6px 10px; margin-left:4px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:rgba(34,38,54,.8); color:var(--muted); }
     .sheetTable .actBtn:hover{ background:rgba(122,162,255,.25); color:var(--text); }
-    .sheetTable .actBtn.del:hover{ background:rgba(255,92,122,.2); color:var(--bad); }
+    .sheetTable .actBtn.sheetDelBtn:hover{ background:rgba(255,92,122,.2); color:var(--bad); }
 
     .readingFeedback{
       border-top:1px solid rgba(34,38,54,.75);
@@ -1421,18 +1421,26 @@
           <td class="colStatus"><span class="statusDot ${esc(statusClass)}"></span>${esc(it.status || "TO_READ")}</td>
           <td class="colActions">
             <button type="button" class="actBtn openBtn" data-id="${esc(it.id)}">Open</button>
-            <button type="button" class="actBtn del" data-id="${esc(it.id)}">Delete</button>
+            <button type="button" class="actBtn sheetDelBtn" data-id="${esc(it.id)}">Delete</button>
           </td>
         `;
-        tr.querySelector(".openBtn").onclick = () => setView("reading-item", { readingId: it.id });
-        tr.querySelector(".actBtn.del").onclick = async () => {
-          if (!confirm("Delete this item?")) return;
-          if (it.pdfId) await pdfDelete(it.pdfId);
-          const updated = loadReading().filter(x => x.id !== it.id);
-          saveReading(updated);
-          toast("Deleted.");
-          drawRows();
-          syncSoon();
+        tr.querySelector(".openBtn").onclick = (e) => { e.stopPropagation(); setView("reading-item", { readingId: it.id }); };
+        tr.querySelector(".sheetDelBtn").onclick = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const id = tr.querySelector(".sheetDelBtn").getAttribute("data-id");
+          if (!id) return;
+          (async () => {
+            if (!confirm("Delete this item?")) return;
+            const all = loadReading();
+            const item = all.find(x => x.id === id);
+            if (item?.pdfId) await pdfDelete(item.pdfId).catch(() => {});
+            const updated = all.filter(x => x.id !== id);
+            saveReading(updated);
+            toast("Deleted.");
+            drawRows();
+            syncSoon();
+          })();
         };
         sheetBody.appendChild(tr);
       }
@@ -1547,9 +1555,9 @@
         <div class="hr"></div>
 
         <div class="btnRow">
-          <button class="btn secondary" id="back">Back</button>
-          <button class="btn secondary" id="open">Open</button>
-          <button class="btn secondary" id="del">Delete</button>
+          <button type="button" class="btn secondary" id="back">Back</button>
+          <button type="button" class="btn secondary" id="open">Open</button>
+          <button type="button" class="btn secondary" id="del">Delete</button>
         </div>
 
         <div class="hr"></div>
@@ -1582,14 +1590,18 @@
       syncSoon();
     };
 
-    $("#del", el).onclick = async () => {
+    $("#del", el).onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (!confirm("Delete this reading item?")) return;
-      if (item.pdfId) await pdfDelete(item.pdfId);
-      const updated = items.filter(x => x.id !== item.id);
-      saveReading(updated);
-      toast("Deleted.");
-      setView("reading");
-      syncSoon();
+      (async () => {
+        if (item.pdfId) await pdfDelete(item.pdfId).catch(() => {});
+        const updated = items.filter(x => x.id !== item.id);
+        saveReading(updated);
+        toast("Deleted.");
+        setView("reading");
+        syncSoon();
+      })();
     };
 
     $("#open", el).onclick = async () => {
