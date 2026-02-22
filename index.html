@@ -306,7 +306,6 @@
   // GitHub Gist Sync
   const LS_GH_TOKEN = "vocabforge.ghToken.v1";
   const LS_GIST_ID = "vocabforge.gistId.v1";
-  const DEFAULT_GIST_ID = "5af41e31e118e48021be2da7e46c1d9f";
 
   const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
 
@@ -421,7 +420,7 @@
 
   // ----- Sync (GitHub Gist) -----
   function getGistId(){
-    return (localStorage.getItem(LS_GIST_ID) || DEFAULT_GIST_ID).trim();
+    return (localStorage.getItem(LS_GIST_ID) || "").trim();
   }
   function setGistId(id){
     const v = (id || "").trim();
@@ -584,7 +583,8 @@
     } catch (e) {
       console.warn("Sync failed:", e);
       const msg = (e && e.message) ? String(e.message) : "";
-      if (msg.includes("NO_GH_TOKEN") || msg.includes("NO_GIST_ID")) syncSetStatus("no token");
+      if (msg.includes("NO_GH_TOKEN")) syncSetStatus("no token");
+      else if (msg.includes("NO_GIST_ID")) syncSetStatus("no gist");
       else if (msg.includes("401")) syncSetStatus("error: bad token");
       else if (msg.includes("404")) syncSetStatus("error: gist not found");
       else if (msg.includes("403")) {
@@ -1808,7 +1808,9 @@
     render();
 
     // Set initial sync status
-    syncSetStatus(getGhToken() ? (navigator.onLine ? "ok" : "offline") : "no token");
+    if (!getGhToken()) syncSetStatus("no token");
+    else if (!getGistId()) syncSetStatus("no gist");
+    else syncSetStatus(navigator.onLine ? "ok" : "offline");
 
     initSyncLoop();
   }
