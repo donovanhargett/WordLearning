@@ -322,7 +322,26 @@
   }
 
   async function generateCardFields(word){
-    const prompt = `You are VocabDeck. Create funny, usable Anki-front content for the word.\n\nWORD: ${word}\n\nReturn STRICT JSON with keys: definition (string), examples (string with 3-4 lines), replaces (string).\n\nRules:\n- definition: conversational, like a funny friend (not a dictionary).\n- examples: 3-4 separate lines. Funny/absurd/real-life scenarios: group chat, gym, sports takes, half-serious political arguments, dating stories, drunk observations.\n- replaces: basic words/phrases this upgrades (use quotes/slashes if helpful).\n- Keep it low-stakes and actually sayable. If the word is formal, show 1 serious use + 1-2 ironic casual uses.\n`;
+    const prompt = `You are VocabDeck. Write like a funny friend in a group chat — confident, punchy, a little roast-y, not academic.
+    
+      WORD: ${word}
+      
+      Return STRICT JSON with keys:
+      - definition (string)
+      - examples (string with 4-6 separate lines, each line starts with a quote)
+      - replaces (string)
+      
+      STYLE RULES:
+      - This is “BRO TERM” energy. Think: gym convos, locker room takes, bar arguments, fantasy football, half-serious politics, dating stories.
+      - Examples should feel like responses you’d actually send in a group chat.
+      - Mix ironic casual usage + (if the word is formal) 1 serious “real” usage max.
+      - Keep it clean enough to send without getting HR-called, but still funny.
+      
+      EXAMPLE LINES SHOULD SOUND LIKE:
+      “He’s identified a powerful nexus between seven beers and ‘feeling fine.’”
+      
+      Now generate.`;
+
 
     const json = await openaiResponses({ input: [{ role: "user", content: prompt }] });
     const text = extractTextFromResponses(json);
