@@ -126,7 +126,7 @@
       backdrop-filter: blur(12px);
       border-top:1px solid rgba(34,38,54,.7);
     }
-    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+    .tabs .inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
     .tab{min-height:50px;border-radius:16px;background:rgba(17,19,26,.65);border:1px solid rgba(34,38,54,.85);color:var(--muted);font-weight:800;font-size:13px;}
     .tab.active{background:rgba(122,162,255,.14);border-color:rgba(122,162,255,.35);color:rgba(225,235,255,.98)}
 
@@ -249,7 +249,7 @@
     .sheetTable .statusDot.DONE{ background:var(--good); }
     .sheetTable .actBtn{ padding:6px 10px; margin-left:4px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:rgba(34,38,54,.8); color:var(--muted); }
     .sheetTable .actBtn:hover{ background:rgba(122,162,255,.25); color:var(--text); }
-    .sheetTable .actBtn.sheetDelBtn:hover{ background:rgba(255,92,122,.2); color:var(--bad); }
+    .sheetTable .actBtn.del:hover{ background:rgba(255,92,122,.2); color:var(--bad); }
 
     .readingFeedback{
       border-top:1px solid rgba(34,38,54,.75);
@@ -285,7 +285,6 @@
     <button class="tab" data-nav="home">Home</button>
     <button class="tab" data-nav="review">Review</button>
     <button class="tab" data-nav="reading">Reading</button>
-    <button class="tab" data-nav="keys">Keys</button>
   </div>
 </nav>
 
@@ -293,24 +292,24 @@
 
 <script>
 (() => {
-  // No localStorage for data — Gist is the single source of truth; credentials in sessionStorage (session-only)
-  const SS_OPENAI_KEY = "vocabforge.openaiKey.v1";
-  const SS_GH_TOKEN = "vocabforge.ghToken.v1";
-  const SS_GIST_ID = "vocabforge.gistId.v1";
+  // Storage keys
+  const LS_CARDS = "vocabforge.cards.v3";
+  const LS_READING = "vocabforge.reading.v2";
+  const LS_READING_FEEDBACK = "vocabforge.reading.feedback.v1";
+  const LS_META = "vocabforge.meta.v2";
 
+  // OpenAI
+  const LS_OPENAI_KEY = "vocabforge.openaiKey.v1";
   const OPENAI_MODEL = "gpt-4o-mini";
+
+  // GitHub Gist Sync
+  const LS_GH_TOKEN = "vocabforge.ghToken.v1";
+  const LS_GIST_ID = "vocabforge.gistId.v1";
+  const DEFAULT_GIST_ID = "5af41e31e118e48021be2da7e46c1d9f";
 
   const BOX_INTERVAL_DAYS = { 1: 1, 2: 3, 3: 7 };
 
-  // In-memory state only; data is loaded from Gist and pushed on every change
-  const appState = {
-    cards: [],
-    reading: [],
-    updatedAt: 0,
-    readingFeedback: ""
-  };
-
-  // IndexedDB for PDFs (device-local only; optional — disable if you want zero local storage)
+  // IndexedDB for PDFs (device-local only)
   const DB_NAME = "vocabforge";
   const DB_VER = 1;
   const STORE_PDFS = "pdfs";
@@ -344,12 +343,12 @@
 
   // ----- OpenAI -----
   function getOpenAIKey(){
-    return (sessionStorage.getItem(SS_OPENAI_KEY) || "").trim();
+    return (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
   }
   function setOpenAIKey(key){
     const k = (key || "").trim();
-    if (!k) sessionStorage.removeItem(SS_OPENAI_KEY);
-    else sessionStorage.setItem(SS_OPENAI_KEY, k);
+    if (!k) localStorage.removeItem(LS_OPENAI_KEY);
+    else localStorage.setItem(LS_OPENAI_KEY, k);
   }
 
   async function openaiResponses({ input }){
@@ -421,20 +420,20 @@
 
   // ----- Sync (GitHub Gist) -----
   function getGistId(){
-    return (sessionStorage.getItem(SS_GIST_ID) || "").trim();
+    return (localStorage.getItem(LS_GIST_ID) || DEFAULT_GIST_ID).trim();
   }
   function setGistId(id){
     const v = (id || "").trim();
-    if (!v) sessionStorage.removeItem(SS_GIST_ID);
-    else sessionStorage.setItem(SS_GIST_ID, v);
+    if (!v) localStorage.removeItem(LS_GIST_ID);
+    else localStorage.setItem(LS_GIST_ID, v);
   }
   function getGhToken(){
-    return (sessionStorage.getItem(SS_GH_TOKEN) || "").trim();
+    return (localStorage.getItem(LS_GH_TOKEN) || "").trim();
   }
   function setGhToken(t){
     const v = (t || "").trim();
-    if (!v) sessionStorage.removeItem(SS_GH_TOKEN);
-    else sessionStorage.setItem(SS_GH_TOKEN, v);
+    if (!v) localStorage.removeItem(LS_GH_TOKEN);
+    else localStorage.setItem(LS_GH_TOKEN, v);
   }
 
   function syncSetStatus(text){
@@ -451,8 +450,7 @@
     const res = await fetch(`https://api.github.com/gists/${gistId}`, {
       headers: {
         "Accept": "application/vnd.github+json",
-        "Authorization": `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28"
+        "Authorization": `token ${token}`
       }
     });
     if (!res.ok) {
@@ -464,14 +462,13 @@
     const content = file?.content;
     const parsed = safeJsonParse(content || "");
     if (!parsed) {
-      return { version: 1, updatedAt: 0, cards: [], reading: [], readingFeedback: "" };
+      return { version: 1, updatedAt: 0, cards: [], reading: [] };
     }
     return {
       version: parsed.version || 1,
       updatedAt: Number(parsed.updatedAt || 0),
       cards: Array.isArray(parsed.cards) ? parsed.cards : [],
-      reading: Array.isArray(parsed.reading) ? parsed.reading : [],
-      readingFeedback: typeof parsed.readingFeedback === "string" ? parsed.readingFeedback : ""
+      reading: Array.isArray(parsed.reading) ? parsed.reading : []
     };
   }
 
@@ -486,8 +483,7 @@
       headers: {
         "Accept": "application/vnd.github+json",
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28"
+        "Authorization": `token ${token}`
       },
       body: JSON.stringify({
         files: {
@@ -528,51 +524,21 @@
   function getLocalPayload(){
     return {
       version: 1,
-      updatedAt: appState.updatedAt,
-      cards: appState.cards,
-      reading: appState.reading,
-      readingFeedback: appState.readingFeedback
+      updatedAt: getLocalUpdatedAt(),
+      cards: loadCards(),
+      reading: loadReading()
     };
   }
 
   function getLocalUpdatedAt(){
-    return Number(appState.updatedAt || 0);
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    return Number(meta.updatedAt || 0);
   }
 
   function bumpLocalUpdatedAt(){
-    appState.updatedAt = now();
-  }
-
-  let pushToGistTimer = null;
-  async function pushToGist(){
-    if (!getGhToken() || !getGistId()) return;
-    if (!navigator.onLine) return;
-    try {
-      await gistPutData({
-        version: 1,
-        updatedAt: appState.updatedAt,
-        cards: appState.cards,
-        reading: appState.reading,
-        readingFeedback: appState.readingFeedback
-      });
-      syncSetStatus("ok");
-    } catch (e) {
-      console.warn("Push to gist failed:", e);
-    }
-  }
-  function pushToGistSoon(immediate = false){
-    if (!getGhToken() || !getGistId()) return;
-    if (immediate) {
-      if (pushToGistTimer) clearTimeout(pushToGistTimer);
-      pushToGistTimer = null;
-      pushToGist();
-      return;
-    }
-    if (pushToGistTimer) return;
-    pushToGistTimer = setTimeout(() => {
-      pushToGistTimer = null;
-      pushToGist();
-    }, 800);
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    meta.updatedAt = now();
+    localStorage.setItem(LS_META, JSON.stringify(meta));
   }
 
   async function syncOnce(){
@@ -603,44 +569,25 @@
         ...mergedReading.map(x => Number(x.updatedAt || 0))
       );
 
-      // Merge readingFeedback: prefer longer non-empty
-      const localFb = (local.readingFeedback || "").trim();
-      const remoteFb = (remote.readingFeedback || "").trim();
-      const mergedFeedback = remoteFb.length >= localFb.length ? remoteFb : localFb;
-
-      // Write merged to in-memory state
-      appState.cards = mergedCards;
-      appState.reading = mergedReading;
-      appState.updatedAt = mergedUpdatedAt;
-      appState.readingFeedback = mergedFeedback;
+      // Write merged to local
+      saveCards(mergedCards, { silentBump: true });
+      saveReading(mergedReading, { silentBump: true });
+      setLocalUpdatedAt(mergedUpdatedAt);
 
       // Push merged back to remote (keeps both devices converged)
-      await gistPutData({ version: 1, updatedAt: mergedUpdatedAt, cards: mergedCards, reading: mergedReading, readingFeedback: mergedFeedback });
+      await gistPutData({ version: 1, updatedAt: mergedUpdatedAt, cards: mergedCards, reading: mergedReading });
 
       syncSetStatus("ok");
     } catch (e) {
-      console.warn("Sync failed:", e);
-      const msg = (e && e.message) ? String(e.message) : "";
-      if (msg.includes("NO_GH_TOKEN")) syncSetStatus("no token");
-      else if (msg.includes("NO_GIST_ID")) syncSetStatus("no gist");
-      else if (msg.includes("401")) syncSetStatus("error: bad token");
-      else if (msg.includes("404")) syncSetStatus("error: gist not found");
-      else if (msg.includes("403")) {
-        let detail = "";
-        try {
-          const body = msg.indexOf(":") >= 0 ? msg.slice(msg.indexOf(":") + 1).trim() : "";
-          const j = body.startsWith("{") ? safeJsonParse(body) : null;
-          if (j && j.message) detail = ": " + String(j.message).slice(0, 120);
-        } catch (_) {}
-        syncSetStatus("error: 403" + detail + " — use a Classic token with gist scope at github.com/settings/tokens");
-      }
-      else if (msg.includes("fetch") || msg.includes("Network")) syncSetStatus("error: network");
-      else syncSetStatus("error");
+      console.warn(e);
+      syncSetStatus("error");
     }
   }
 
   function setLocalUpdatedAt(ts){
-    appState.updatedAt = Number(ts || 0);
+    const meta = safeJsonParse(localStorage.getItem(LS_META) || "{}") || {};
+    meta.updatedAt = Number(ts || 0);
+    localStorage.setItem(LS_META, JSON.stringify(meta));
   }
 
   // ----- Data models -----
@@ -660,33 +607,34 @@
     }).filter(e => e.t);
   }
 
-  function normalizeCardsArray(arr){
-    if (!Array.isArray(arr)) return [];
-    return arr.map(c => ({
-      id: c.id || uid(),
-      word: c.word || "",
-      definition: c.definition ?? "",
-      examples: c.examples ?? "",
-      replaces: c.replaces ?? "",
-      mySentence: c.mySentence ?? "",
-      mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
-      timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
-      nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
-      box: clamp((c.box ?? 1), 1, 3),
-      lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
-      dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now(),
-      updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : (c.dateAdded || now())
-    }));
-  }
-
   function loadCards(){
-    return normalizeCardsArray(appState.cards);
+    const raw = localStorage.getItem(LS_CARDS);
+    if (!raw) return [];
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(c => {
+      const card = {
+        id: c.id || uid(),
+        word: c.word || "",
+        definition: c.definition ?? "",
+        examples: c.examples ?? "",
+        replaces: c.replaces ?? "",
+        mySentence: c.mySentence ?? "",
+        mySentenceHistory: normalizeSentenceHistory(c.mySentenceHistory),
+        timesReviewed: Number.isFinite(c.timesReviewed) ? c.timesReviewed : 0,
+        nailedCount: Number.isFinite(c.nailedCount) ? c.nailedCount : 0,
+        box: clamp((c.box ?? 1), 1, 3),
+        lastReviewedTs: Number.isFinite(c.lastReviewedTs) ? c.lastReviewedTs : null,
+        dateAdded: Number.isFinite(c.dateAdded) ? c.dateAdded : now(),
+        updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : (c.dateAdded || now())
+      };
+      return card;
+    });
   }
 
   function saveCards(cards, opts={}){
-    appState.cards = normalizeCardsArray(cards);
+    localStorage.setItem(LS_CARDS, JSON.stringify(cards));
     if (!opts.silentBump) bumpLocalUpdatedAt();
-    pushToGistSoon();
   }
 
   function computeStatus(card){
@@ -717,9 +665,12 @@
     return out;
   }
 
-  function normalizeReadingArray(arr){
-    if (!Array.isArray(arr)) return [];
-    return arr.map(x => ({
+  function loadReading(){
+    const raw = localStorage.getItem(LS_READING);
+    if (!raw) return [];
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(x => ({
       id: x.id || uid(),
       type: x.type || "article",
       title: x.title || "",
@@ -728,19 +679,42 @@
       status: x.status || "TO_READ",
       notes: x.notes || "",
       pdfId: x.pdfId || null,
+      // Tombstone delete so sync can propagate deletes across devices
+      deletedAt: Number.isFinite(x.deletedAt) ? x.deletedAt : null,
       dateAdded: Number.isFinite(x.dateAdded) ? x.dateAdded : now(),
       updatedAt: Number.isFinite(x.updatedAt) ? x.updatedAt : (x.dateAdded || now())
     }));
   }
 
-  function loadReading(){
-    return normalizeReadingArray(appState.reading);
+  function isDeleted(item){
+    return !!(item && Number.isFinite(item.deletedAt) && item.deletedAt > 0);
+  }
+
+  function readingSoftDelete(id){
+    const all = loadReading();
+    const t = now();
+    for (const it of all) {
+      if (it.id === id) {
+        it.deletedAt = t;
+        it.updatedAt = t;
+      }
+    }
+    return all;
+  }
+
+  function readingSoftDeleteAll(){
+    const all = loadReading();
+    const t = now();
+    for (const it of all) {
+      it.deletedAt = t;
+      it.updatedAt = t;
+    }
+    return all;
   }
 
   function saveReading(items, opts={}){
-    appState.reading = normalizeReadingArray(items);
+    localStorage.setItem(LS_READING, JSON.stringify(items));
     if (!opts.silentBump) bumpLocalUpdatedAt();
-    pushToGistSoon();
   }
 
   // ----- IndexedDB (PDFs device-local) -----
@@ -817,7 +791,7 @@
     if (view === "edit-card") setView("edit-card", { editId: id });
     else if (view === "review") setView("review", { reviewId: id });
     else if (view === "reading-item") setView("reading-item", { readingId: id });
-    else setView(["home","review","reading","keys"].includes(view) ? view : "home");
+    else setView(["home","review","reading"].includes(view) ? view : "home");
   });
 
   $$(".tab").forEach(btn => btn.addEventListener("click", () => setView(btn.dataset.nav)));
@@ -833,14 +807,24 @@
   }
 
   function viewHome(cards){
+    const { total, dueToday, mastered } = getStats(cards);
+
     const el = document.createElement("div");
     el.className = "grid";
 
     const left = document.createElement("div");
     left.className = "card";
     left.innerHTML = `
-      <div class="hd"><h2>Home</h2></div>
+      <div class="hd"><h2>Home</h2><span class="badge">Sync + Forge</span></div>
       <div class="bd">
+        <div class="kpiRow">
+          <div class="kpi"><div class="n">${total}</div><div class="l">Total words</div></div>
+          <div class="kpi"><div class="n">${dueToday}</div><div class="l">Due today</div></div>
+          <div class="kpi"><div class="n">${mastered}</div><div class="l">Functional</div></div>
+        </div>
+
+        <div class="hr"></div>
+
         <div class="field">
           <label>Add words (comma or newline)</label>
           <textarea id="wordInput" placeholder="entropy, laconic\n..."></textarea>
@@ -848,7 +832,55 @@
         <div class="btnRow">
           <button class="btn full" id="build">Build Deck</button>
         </div>
-        <div class="hint">Build Deck creates cards and fills them with AI. Add your API key on the Keys page first.</div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:900">Sync (GitHub Gist)</div>
+        <div class="hint">Keeps phone + computer in sync. Requires internet. Data is stored in your secret Gist.</div>
+        <div class="field" style="margin-top:10px">
+          <label>Gist ID</label>
+          <input id="gistId" type="text" placeholder="gist id" />
+        </div>
+        <div class="field">
+          <label>GitHub Token (Gists: read/write)</label>
+          <input id="ghToken" type="password" placeholder="github token" autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint" id="ghStatus"></div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveSync">Save</button>
+          <button class="btn secondary" id="clearSync">Clear</button>
+          <button class="btn secondary" id="revealSync">Reveal</button>
+          <button class="btn secondary" id="syncNow">Sync now</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:900">AI (online)</div>
+        <div class="hint">Key is stored only on this device. Reveal shows it temporarily.</div>
+        <div class="field" style="margin-top:10px">
+          <label>OpenAI API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
+          <div class="hint" id="keyStatus"></div>
+        </div>
+        <div class="btnRow">
+          <button class="btn secondary" id="saveKey">Save</button>
+          <button class="btn secondary" id="clearKey">Clear</button>
+          <button class="btn secondary" id="revealKey">Reveal</button>
+          <button class="btn secondary" id="testKey">Test</button>
+        </div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn full" id="genNew">Generate for NEW cards</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="font-weight:900">Backup</div>
+        <div class="hint">Export JSON if you want an extra backup. PDFs are device-local.</div>
+        <div class="btnRow" style="margin-top:10px">
+          <button class="btn secondary" id="exportBtn">Export JSON</button>
+          <button class="btn secondary" id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none" />
+        </div>
       </div>
     `;
 
@@ -868,7 +900,8 @@
     el.appendChild(left);
     el.appendChild(right);
 
-    $("#build", left).onclick = async () => {
+    // Add words
+    $("#build", left).onclick = () => {
       const raw = $("#wordInput", left).value || "";
       const parts = raw.split(/[\n,]+/g);
       const words = uniqueWords(parts);
@@ -877,8 +910,6 @@
       const existing = new Set(cards.map(c => (c.word||"").trim().toLowerCase()));
       const newOnes = words.filter(w => !existing.has(w.toLowerCase()));
       if (!newOnes.length) return toast("All of those words already exist.");
-
-      if (!getOpenAIKey()) return toast("Add your API key on the Keys page first.");
 
       const t = now();
       const toAdd = newOnes.map(w => ({
@@ -897,35 +928,151 @@
         updatedAt: t
       }));
 
-      let updated = [...cards, ...toAdd];
+      const updated = [...cards, ...toAdd];
       saveCards(updated);
       $("#wordInput", left).value = "";
-      toast(`Built ${toAdd.length} cards. Generating content…`);
+      toast(`Built ${toAdd.length} cards.`);
       render();
       syncSoon();
+    };
 
+    // Sync UI
+    const gistIdInput = $("#gistId", left);
+    const ghTokenInput = $("#ghToken", left);
+    const ghStatus = $("#ghStatus", left);
+    const revealSyncBtn = $("#revealSync", left);
+
+    gistIdInput.value = getGistId();
+
+    const savedTok = getGhToken();
+    if (ghStatus) ghStatus.textContent = savedTok ? `Token saved (ends with …${savedTok.slice(-4)}).` : "No token saved.";
+
+    let revealedSync = false;
+    revealSyncBtn.onclick = () => {
+      const k = getGhToken();
+      if (!k) return toast("No token saved.");
+      revealedSync = !revealedSync;
+      ghTokenInput.type = revealedSync ? "text" : "password";
+      ghTokenInput.value = revealedSync ? k : "";
+      revealSyncBtn.textContent = revealedSync ? "Hide" : "Reveal";
+    };
+
+    $("#saveSync", left).onclick = () => {
+      setGistId(gistIdInput.value);
+      setGhToken(ghTokenInput.value);
+      const t2 = getGhToken();
+      if (ghStatus) ghStatus.textContent = t2 ? `Token saved (ends with …${t2.slice(-4)}).` : "No token saved.";
+      ghTokenInput.type = "password";
+      ghTokenInput.value = "";
+      revealedSync = false;
+      revealSyncBtn.textContent = "Reveal";
+      toast(t2 ? "Saved sync." : "Cleared token.");
+      syncSoon(true);
+    };
+
+    $("#clearSync", left).onclick = () => {
+      setGhToken("");
+      if (ghStatus) ghStatus.textContent = "No token saved.";
+      ghTokenInput.type = "password";
+      ghTokenInput.value = "";
+      revealedSync = false;
+      revealSyncBtn.textContent = "Reveal";
+      toast("Cleared.");
+      syncSetStatus("no token");
+    };
+
+    $("#syncNow", left).onclick = async () => {
+      await syncOnce();
+      render();
+    };
+
+    // Key UI
+    const apiKeyInput = $("#apiKey", left);
+    const keyStatus = $("#keyStatus", left);
+    const saved = getOpenAIKey();
+    if (keyStatus) keyStatus.textContent = saved ? `Key saved (ends with …${saved.slice(-4)}).` : "No key saved.";
+
+    let revealed = false;
+    $("#revealKey", left).onclick = () => {
+      const k = getOpenAIKey();
+      if (!k) return toast("No key saved.");
+      revealed = !revealed;
+      apiKeyInput.type = revealed ? "text" : "password";
+      apiKeyInput.value = revealed ? k : "";
+      $("#revealKey", left).textContent = revealed ? "Hide" : "Reveal";
+    };
+
+    $("#saveKey", left).onclick = () => {
+      setOpenAIKey(apiKeyInput.value);
+      const saved2 = getOpenAIKey();
+      if (keyStatus) keyStatus.textContent = saved2 ? `Key saved (ends with …${saved2.slice(-4)}).` : "No key saved.";
+      apiKeyInput.type = "password";
+      apiKeyInput.value = "";
+      revealed = false;
+      $("#revealKey", left).textContent = "Reveal";
+      toast(saved2 ? "Saved key." : "Key cleared.");
+    };
+
+    $("#clearKey", left).onclick = () => {
+      setOpenAIKey("");
+      if (keyStatus) keyStatus.textContent = "No key saved.";
+      apiKeyInput.type = "password";
+      apiKeyInput.value = "";
+      revealed = false;
+      $("#revealKey", left).textContent = "Reveal";
+      toast("Cleared.");
+    };
+
+    $("#testKey", left).onclick = async () => {
       try {
+        await openaiResponses({ input: [{ role: "user", content: "{\"ok\":true}" }] });
+        toast("Key works.");
+      } catch (e) {
+        if (String(e.message||e) === "NO_KEY") toast("Paste your API key first.");
+        else toast("Key test failed.");
+        console.warn(e);
+      }
+    };
+
+    $("#genNew", left).onclick = async () => {
+      try {
+        if (!getOpenAIKey()) return toast("Paste your API key first.");
+        const all = loadCards();
+        const targets = all.filter(c => computeStatus(c) === "NEW");
+        if (!targets.length) return toast("No NEW cards.");
+
         let done = 0;
-        for (const c of toAdd) {
-          toast(`Generating: ${c.word} (${done + 1}/${toAdd.length})`);
+        for (const c of targets) {
+          toast(`Generating: ${c.word} (${done+1}/${targets.length})`);
           const fields = await generateCardFields(c.word);
           c.definition = c.definition || fields.definition;
           c.examples = c.examples || fields.examples;
           c.replaces = c.replaces || fields.replaces;
           c.updatedAt = now();
           done++;
-          saveCards(updated);
+          saveCards(all);
         }
-        toast(`Built and generated ${done} cards.`);
+        toast(`Generated ${done}.`);
         render();
         syncSoon();
       } catch (e) {
-        toast("Generation failed for some cards.");
+        toast("Generation failed.");
         console.warn(e);
-        render();
-        syncSoon();
       }
     };
+
+    // Backup import/export
+    $("#exportBtn", left).onclick = () => exportJson(cards);
+    $("#importBtn", left).onclick = () => $("#importFile", left).click();
+    $("#importFile", left).addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const txt = await f.text();
+      const incoming = safeJsonParse(txt);
+      if (!incoming) return toast("Invalid JSON.");
+      handleImport(incoming);
+      e.target.value = "";
+    });
 
     // Word list
     const list = $("#list", right);
@@ -956,197 +1103,6 @@
     };
     q.addEventListener("input", draw);
     draw();
-
-    return el;
-  }
-
-  function viewKeys(cards){
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `
-      <div class="hd"><h2>Keys</h2><span class="badge">Sync · AI · Backup</span></div>
-      <div class="bd">
-        <div class="hint" style="margin-bottom:12px">Nothing is stored locally. Data lives only in your Gist; keys are session-only (cleared when you close the tab).</div>
-        <div style="font-weight:900">Sync (GitHub Gist)</div>
-        <div class="hint">Keeps devices in sync. Data is stored only in your secret Gist.</div>
-        <div class="field" style="margin-top:10px">
-          <label>Gist ID</label>
-          <input id="gistId" type="text" placeholder="gist id" />
-        </div>
-        <div class="field">
-          <label>GitHub Token (must have <strong>gist</strong> scope)</label>
-          <input id="ghToken" type="password" placeholder="github token" autocomplete="off" autocapitalize="off" spellcheck="false" />
-          <div class="hint" id="ghStatus"></div>
-          <div class="hint">Use a <strong>Classic</strong> token (not Fine-grained). Create at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a> → Generate new token (classic) → check <strong>gist</strong>.</div>
-        </div>
-        <div class="btnRow">
-          <button class="btn secondary" id="saveSync">Save</button>
-          <button class="btn secondary" id="clearSync">Clear</button>
-          <button class="btn secondary" id="revealSync">Reveal</button>
-          <button class="btn secondary" id="syncNow">Sync now</button>
-        </div>
-
-        <div class="hr"></div>
-
-        <div style="font-weight:900">AI (OpenAI)</div>
-        <div class="hint">Key is stored only on this device. Used for Build Deck and Generate.</div>
-        <div class="field" style="margin-top:10px">
-          <label>OpenAI API Key</label>
-          <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" />
-          <div class="hint" id="keyStatus"></div>
-        </div>
-        <div class="btnRow">
-          <button class="btn secondary" id="saveKey">Save</button>
-          <button class="btn secondary" id="clearKey">Clear</button>
-          <button class="btn secondary" id="revealKey">Reveal</button>
-          <button class="btn secondary" id="testKey">Test</button>
-        </div>
-        <div class="btnRow" style="margin-top:10px">
-          <button class="btn full" id="genNew">Generate for NEW cards</button>
-        </div>
-
-        <div class="hr"></div>
-
-        <div style="font-weight:900">Backup</div>
-        <div class="hint">Export/import JSON. PDFs are device-local.</div>
-        <div class="btnRow" style="margin-top:10px">
-          <button class="btn secondary" id="exportBtn">Export JSON</button>
-          <button class="btn secondary" id="importBtn">Import JSON</button>
-          <input type="file" id="importFile" accept="application/json" style="display:none" />
-        </div>
-      </div>
-    `;
-
-    const gistIdInput = $("#gistId", el);
-    const ghTokenInput = $("#ghToken", el);
-    const ghStatus = $("#ghStatus", el);
-    const revealSyncBtn = $("#revealSync", el);
-    gistIdInput.value = getGistId();
-    if (ghStatus) ghStatus.textContent = getGhToken() ? `Token saved (ends with …${getGhToken().slice(-4)}).` : "No token saved.";
-
-    let revealedSync = false;
-    revealSyncBtn.onclick = () => {
-      const k = getGhToken();
-      if (!k) return toast("No token saved.");
-      revealedSync = !revealedSync;
-      ghTokenInput.type = revealedSync ? "text" : "password";
-      ghTokenInput.value = revealedSync ? k : "";
-      revealSyncBtn.textContent = revealedSync ? "Hide" : "Reveal";
-    };
-
-    $("#saveSync", el).onclick = () => {
-      setGistId(gistIdInput.value);
-      setGhToken(ghTokenInput.value);
-      const t2 = getGhToken();
-      if (ghStatus) ghStatus.textContent = t2 ? `Token saved (ends with …${t2.slice(-4)}).` : "No token saved.";
-      ghTokenInput.type = "password";
-      ghTokenInput.value = "";
-      revealedSync = false;
-      revealSyncBtn.textContent = "Reveal";
-      toast(t2 ? "Saved sync." : "Cleared token.");
-      syncSoon(true);
-    };
-
-    $("#clearSync", el).onclick = () => {
-      setGhToken("");
-      if (ghStatus) ghStatus.textContent = "No token saved.";
-      ghTokenInput.type = "password";
-      ghTokenInput.value = "";
-      revealedSync = false;
-      revealSyncBtn.textContent = "Reveal";
-      toast("Cleared.");
-      syncSetStatus("no token");
-    };
-
-    $("#syncNow", el).onclick = async () => {
-      await syncOnce();
-      render();
-    };
-
-    const apiKeyInput = $("#apiKey", el);
-    const keyStatus = $("#keyStatus", el);
-    if (keyStatus) keyStatus.textContent = getOpenAIKey() ? `Key saved (ends with …${getOpenAIKey().slice(-4)}).` : "No key saved.";
-
-    let revealed = false;
-    $("#revealKey", el).onclick = () => {
-      const k = getOpenAIKey();
-      if (!k) return toast("No key saved.");
-      revealed = !revealed;
-      apiKeyInput.type = revealed ? "text" : "password";
-      apiKeyInput.value = revealed ? k : "";
-      $("#revealKey", el).textContent = revealed ? "Hide" : "Reveal";
-    };
-
-    $("#saveKey", el).onclick = () => {
-      setOpenAIKey(apiKeyInput.value);
-      const saved2 = getOpenAIKey();
-      if (keyStatus) keyStatus.textContent = saved2 ? `Key saved (ends with …${saved2.slice(-4)}).` : "No key saved.";
-      apiKeyInput.type = "password";
-      apiKeyInput.value = "";
-      revealed = false;
-      $("#revealKey", el).textContent = "Reveal";
-      toast(saved2 ? "Saved key." : "Key cleared.");
-    };
-
-    $("#clearKey", el).onclick = () => {
-      setOpenAIKey("");
-      if (keyStatus) keyStatus.textContent = "No key saved.";
-      apiKeyInput.type = "password";
-      apiKeyInput.value = "";
-      revealed = false;
-      $("#revealKey", el).textContent = "Reveal";
-      toast("Cleared.");
-    };
-
-    $("#testKey", el).onclick = async () => {
-      try {
-        await openaiResponses({ input: [{ role: "user", content: "{\"ok\":true}" }] });
-        toast("Key works.");
-      } catch (e) {
-        if (String(e.message||e) === "NO_KEY") toast("Paste your API key first.");
-        else toast("Key test failed.");
-        console.warn(e);
-      }
-    };
-
-    $("#genNew", el).onclick = async () => {
-      try {
-        if (!getOpenAIKey()) return toast("Paste your API key first.");
-        const all = loadCards();
-        const targets = all.filter(c => computeStatus(c) === "NEW");
-        if (!targets.length) return toast("No NEW cards.");
-
-        let done = 0;
-        for (const c of targets) {
-          toast(`Generating: ${c.word} (${done+1}/${targets.length})`);
-          const fields = await generateCardFields(c.word);
-          c.definition = c.definition || fields.definition;
-          c.examples = c.examples || fields.examples;
-          c.replaces = c.replaces || fields.replaces;
-          c.updatedAt = now();
-          done++;
-          saveCards(all);
-        }
-        toast(`Generated ${done}.`);
-        render();
-        syncSoon();
-      } catch (e) {
-        toast("Generation failed.");
-        console.warn(e);
-      }
-    };
-
-    $("#exportBtn", el).onclick = () => exportJson(cards);
-    $("#importBtn", el).onclick = () => $("#importFile", el).click();
-    $("#importFile", el).addEventListener("change", async (e) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-      const txt = await f.text();
-      const incoming = safeJsonParse(txt);
-      if (!incoming) return toast("Invalid JSON.");
-      handleImport(incoming);
-      e.target.value = "";
-    });
 
     return el;
   }
@@ -1207,7 +1163,7 @@
 
     $("#genAi", el).onclick = async () => {
       try {
-        if (!getOpenAIKey()) return toast("Add API key on Keys page first.");
+        if (!getOpenAIKey()) return toast("Add API key on Home first.");
         toast(`Generating: ${card.word}`);
         const fields = await generateCardFields(card.word);
         $("#def", el).value = fields.definition;
@@ -1323,7 +1279,7 @@
       $("#grade", b).onclick = async () => {
         const sentence = ($("#mysent", b).value || "").trim();
         if (!sentence) return toast("Type a sentence first.");
-        if (!getOpenAIKey()) return toast("Add API key on Keys page.");
+        if (!getOpenAIKey()) return toast("Add API key on Home.");
 
         card.mySentence = sentence;
         card.mySentenceHistory = normalizeSentenceHistory(card.mySentenceHistory);
@@ -1386,11 +1342,10 @@
   }
 
   function getReadingFeedback(){
-    return (appState.readingFeedback || "").trim();
+    return (localStorage.getItem(LS_READING_FEEDBACK) || "").trim();
   }
   function setReadingFeedback(text){
-    appState.readingFeedback = (text || "").trim();
-    pushToGistSoon();
+    localStorage.setItem(LS_READING_FEEDBACK, (text || "").trim());
   }
 
   function viewReading(items){
@@ -1399,7 +1354,7 @@
 
     const filterVal = { current: "ALL" };
     function getFiltered(){
-      const all = loadReading();
+      const all = loadReading().filter(x => !isDeleted(x));
       const f = filterVal.current;
       return f === "ALL" ? all : all.filter(x => x.type === f);
     }
@@ -1438,7 +1393,7 @@
               <td class="colTitle"><input type="text" class="cellInput" id="newTitle" placeholder="Book or title" /></td>
               <td class="colDesc"><textarea class="cellInput" id="newDesc" placeholder="Description / notes" rows="1"></textarea></td>
               <td class="colStatus"></td>
-              <td class="colActions"><button type="button" class="btn small" id="sheetAddRow">Add row</button></td>
+              <td class="colActions"><button class="btn small" id="sheetAddRow">Add row</button></td>
             </tr>
           </tbody>
         </table>
@@ -1494,26 +1449,19 @@
           <td class="colStatus"><span class="statusDot ${esc(statusClass)}"></span>${esc(it.status || "TO_READ")}</td>
           <td class="colActions">
             <button type="button" class="actBtn openBtn" data-id="${esc(it.id)}">Open</button>
-            <button type="button" class="actBtn sheetDelBtn" data-id="${esc(it.id)}">Delete</button>
+            <button type="button" class="actBtn del" data-id="${esc(it.id)}">Delete</button>
           </td>
         `;
-        tr.querySelector(".openBtn").onclick = (e) => { e.stopPropagation(); setView("reading-item", { readingId: it.id }); };
-        tr.querySelector(".sheetDelBtn").onclick = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          const id = tr.querySelector(".sheetDelBtn").getAttribute("data-id");
-          if (!id) return;
-          (async () => {
-            if (!confirm("Delete this item?")) return;
-            const all = loadReading();
-            const item = all.find(x => x.id === id);
-            if (item?.pdfId) await pdfDelete(item.pdfId).catch(() => {});
-            const updated = all.filter(x => x.id !== id);
-            saveReading(updated);
-            toast("Deleted.");
-            drawRows();
-            syncSoon();
-          })();
+        tr.querySelector(".openBtn").onclick = () => setView("reading-item", { readingId: it.id });
+        tr.querySelector(".actBtn.del").onclick = async () => {
+          if (!confirm("Delete this item?")) return;
+          // PDFs are device-local; delete local bytes, but keep a tombstone for sync.
+          if (it.pdfId) await pdfDelete(it.pdfId);
+          const updated = readingSoftDelete(it.id);
+          saveReading(updated);
+          toast("Deleted.");
+          drawRows();
+          syncSoon(true);
         };
         sheetBody.appendChild(tr);
       }
@@ -1531,23 +1479,20 @@
 
     $("#sheetClearAll", el).onclick = async () => {
       if (!confirm("Delete all items in the reading list? This cannot be undone.")) return;
-      const all = loadReading();
+      const all = loadReading().filter(x => !isDeleted(x));
       for (const it of all) { if (it.pdfId) await pdfDelete(it.pdfId); }
-      saveReading([]);
+      // Keep tombstones so the clear propagates to other devices via sync.
+      saveReading(readingSoftDeleteAll());
       drawRows();
-      syncSoon();
+      syncSoon(true);
       toast("Reading list cleared.");
     };
 
-    let addRowCooldown = false;
     function addOneRow(){
-      if (addRowCooldown) return;
       const author = newAuthor.value.trim();
       const title = newTitle.value.trim();
       const desc = newDesc.value.trim();
       if (!title) return toast("Book / title required.");
-      addRowCooldown = true;
-      setTimeout(() => { addRowCooldown = false; }, 400);
       const all = loadReading();
       const tNow = now();
       all.unshift({ id: uid(), type: "book", title, author, url: "", status: "TO_READ", notes: desc, pdfId: null, dateAdded: tNow, updatedAt: tNow });
@@ -1562,9 +1507,9 @@
     }
 
     sheetAddRow.onclick = addOneRow;
-    newDesc.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.repeat) { e.preventDefault(); addOneRow(); } });
-    newTitle.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); addOneRow(); } });
-    newAuthor.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); newTitle.focus(); } });
+    newDesc.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addOneRow(); } });
+    newTitle.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addOneRow(); } });
+    newAuthor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); newTitle.focus(); } });
 
     uploadBookFile.addEventListener("change", () => {
       const f = uploadBookFile.files?.[0];
@@ -1583,12 +1528,11 @@
       const existingKeys = new Set(all.map(x => (x.author + "|" + x.title).toLowerCase()));
       let added = 0;
       for (const line of lines) {
-        // Split only on em dash (—) or en dash (–), not hyphen (-), so "Best-of" stays intact
-        const parts = line.split(/\s*[—–]\s*/).map(s => s.trim()).filter(Boolean);
+        const parts = line.split(/\s*[—–-]\s*/).map(s => s.trim()).filter(Boolean);
         if (parts.length < 2) continue;
-        const author = parts[0];   // name
-        const title = parts[1];   // book title
-        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";  // description
+        const author = parts[0];
+        const title = parts[1];
+        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";
         const key = (author + "|" + title).toLowerCase();
         if (!title || existingKeys.has(key)) continue;
         existingKeys.add(key);
@@ -1617,7 +1561,7 @@
     const el = document.createElement("div");
     el.className = "card";
 
-    if (!item) {
+    if (!item || isDeleted(item)) {
       el.innerHTML = `<div class="hd"><h2>Not found</h2><span class="badge">¯\\_(ツ)_/¯</span></div><div class="bd"><button class="btn full" id="back">Back</button></div>`;
       $("#back", el).onclick = () => setView("reading");
       return el;
@@ -1632,9 +1576,9 @@
         <div class="hr"></div>
 
         <div class="btnRow">
-          <button type="button" class="btn secondary" id="back">Back</button>
-          <button type="button" class="btn secondary" id="open">Open</button>
-          <button type="button" class="btn secondary" id="del">Delete</button>
+          <button class="btn secondary" id="back">Back</button>
+          <button class="btn secondary" id="open">Open</button>
+          <button class="btn secondary" id="del">Delete</button>
         </div>
 
         <div class="hr"></div>
@@ -1667,18 +1611,13 @@
       syncSoon();
     };
 
-    $("#del", el).onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    $("#del", el).onclick = async () => {
       if (!confirm("Delete this reading item?")) return;
-      (async () => {
-        if (item.pdfId) await pdfDelete(item.pdfId).catch(() => {});
-        const updated = items.filter(x => x.id !== item.id);
-        saveReading(updated);
-        toast("Deleted.");
-        setView("reading");
-        syncSoon();
-      })();
+      if (item.pdfId) await pdfDelete(item.pdfId);
+      saveReading(readingSoftDelete(item.id));
+      toast("Deleted.");
+      setView("reading");
+      syncSoon(true);
     };
 
     $("#open", el).onclick = async () => {
@@ -1789,7 +1728,6 @@
     const reading = loadReading();
 
     if (state.view === "home") root.appendChild(viewHome(cards));
-    else if (state.view === "keys") root.appendChild(viewKeys(cards));
     else if (state.view === "edit-card") root.appendChild(viewEditCard(cards, state.editId));
     else if (state.view === "review") root.appendChild(viewReview(cards, state.reviewId));
     else if (state.view === "reading") root.appendChild(viewReading(reading));
@@ -1831,34 +1769,23 @@
     });
   }
 
-  async function init(){
-    // Load data from Gist (no local persistence — Gist is source of truth)
-    if (getGhToken() && getGistId() && navigator.onLine) {
-      try {
-        const remote = await gistFetchData();
-        appState.cards = normalizeCardsArray(remote.cards || []);
-        appState.reading = normalizeReadingArray(remote.reading || []);
-        appState.updatedAt = Number(remote.updatedAt || 0);
-        appState.readingFeedback = typeof remote.readingFeedback === "string" ? remote.readingFeedback : "";
-      } catch (e) {
-        console.warn("Initial gist fetch failed:", e);
-      }
-    }
+  function init(){
+    // Ensure meta exists
+    const metaRaw = localStorage.getItem(LS_META);
+    if (!metaRaw) localStorage.setItem(LS_META, JSON.stringify({ createdAt: now(), updatedAt: 0 }));
 
     // Initial routing
     const { view, id } = parseHash();
     if (view === "edit-card") setView("edit-card", { editId: id });
     else if (view === "review") setView("review", { reviewId: id });
     else if (view === "reading-item") setView("reading-item", { readingId: id });
-    else setView(["home","review","reading","keys"].includes(view) ? view : "home");
+    else setView(["home","review","reading"].includes(view) ? view : "home");
 
     initServiceWorker();
     render();
 
     // Set initial sync status
-    if (!getGhToken()) syncSetStatus("no token");
-    else if (!getGistId()) syncSetStatus("no gist");
-    else syncSetStatus(navigator.onLine ? "ok" : "offline");
+    syncSetStatus(getGhToken() ? (navigator.onLine ? "ok" : "offline") : "no token");
 
     initSyncLoop();
   }
