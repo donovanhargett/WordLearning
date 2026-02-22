@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Seed Reading List</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 2rem auto; padding: 1rem; }
+    h1 { font-size: 1.25rem; }
+    .done { color: green; }
+    a { color: #7aa2ff; }
+  </style>
+</head>
+<body>
+  <h1>Reading list seed</h1>
+  <p id="out">Running…</p>
+  <script>
+    (function () {
+      const LS_READING = "vocabforge.reading.v2";
+      const uid = () => "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+      const now = () => Date.now();
+
+      const lines = [
+        "Mencken — A Mencken Chrestomathy — Best-of collection spanning his entire cantankerous career",
+        "Mencken — Prejudices: First Series — Savage takedowns of American cultural mediocrity",
+        "Mencken — Notes on Democracy — Gleefully brutal dismantling of democratic pieties",
+        "Vidal — United States: Essays 1952-1992 — Forty years of elegant literary and political warfare",
+        "Vidal — Perpetual War for Perpetual Peace — American empire criticized with aristocratic contempt",
+        "Vidal — The Last Empire — Late-career essays dripping with civilizational exhaustion",
+        "Hitchens — Arguably: Essays — Enormous collection showcasing his ferocious erudite range",
+        "Hitchens — Letters to a Young Contrarian — Manual for intellectual dissent and rhetorical independence",
+        "Hitchens — Love, Poverty, and War — War reporting and literary criticism fused beautifully",
+        "Orwell — Essays (Everyman's) — The complete political and cultural writings, indispensable",
+        "Orwell — The Road to Wigan Pier — Class, poverty, and socialism examined with brutal honesty"
+      ];
+
+      let existing = [];
+      try {
+        const raw = localStorage.getItem(LS_READING);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) existing = parsed;
+        }
+      } catch (_) {}
+
+      const existingKeys = new Set(existing.map(x => (x.author + "|" + x.title).toLowerCase()));
+      const tNow = now();
+      let added = 0;
+
+      for (const line of lines) {
+        const parts = line.split(/\s*[—–]\s*/).map(s => s.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const author = parts[0];
+        const title = parts[1];
+        const notes = parts.length >= 3 ? parts.slice(2).join(" — ").trim() : "";
+        const key = (author + "|" + title).toLowerCase();
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+        existing.unshift({
+          id: uid(),
+          type: "book",
+          title,
+          author,
+          url: "",
+          status: "TO_READ",
+          notes,
+          pdfId: null,
+          dateAdded: tNow,
+          updatedAt: tNow
+        });
+        added++;
+      }
+
+      localStorage.setItem(LS_READING, JSON.stringify(existing));
+
+      const out = document.getElementById("out");
+      out.innerHTML = added
+        ? `<span class="done">Added ${added} book${added !== 1 ? "s" : ""}.</span> <a href="index.html">Open VocabForge</a>`
+        : "No new books (all were already in your list). <a href="index.html">Open VocabForge</a>";
+      out.classList.add("done");
+    })();
+  </script>
+</body>
+</html>
